@@ -170,7 +170,7 @@ def build_dataset(req: DatasetBuildRequest) -> DatasetPreviewResponse:
         system_prompt=req.system_prompt.strip(),
     )
 
-    output_dir = Path("data/datasets") / persona["id"]
+    output_dir = settings.datasets_dir / persona["id"]
     train_path, val_path, meta = dataset_builder.build_dataset_files(
         parsed_items,
         req.system_prompt.strip(),

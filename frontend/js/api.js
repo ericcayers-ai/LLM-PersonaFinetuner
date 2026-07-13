@@ -23,6 +23,8 @@ async function request(path, options = {}) {
   }
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return res.json();
+  if (ct.startsWith("audio/")) return res.blob();
+  if (res.status === 204) return null;
   return res.text();
 }
 
@@ -56,6 +58,29 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+    }),
+  getVoiceCapabilities: () => request("/api/voice/capabilities"),
+  getVoiceProfile: (personaId) => request(`/api/voice/${personaId}/profile`),
+  uploadVoiceProfile: (personaId, file, consentConfirmed, language = "en") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("consent_confirmed", String(consentConfirmed));
+    form.append("language", language);
+    return request(`/api/voice/${personaId}/profile`, { method: "POST", body: form });
+  },
+  deleteVoiceProfile: (personaId) =>
+    request(`/api/voice/${personaId}/profile`, { method: "DELETE" }),
+  transcribe: (file, language = "") => {
+    const form = new FormData();
+    form.append("file", file);
+    if (language) form.append("language", language);
+    return request("/api/voice/transcribe", { method: "POST", body: form });
+  },
+  synthesize: (personaId, text, language = "en") =>
+    request(`/api/voice/${personaId}/synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language }),
     }),
   exportGguf: (personaId) =>
     request(`/api/personas/${personaId}/export-gguf`, { method: "POST" }),

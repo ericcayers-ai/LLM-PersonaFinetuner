@@ -2,6 +2,8 @@ import { api, showToast } from "./api.js";
 import { renderSource } from "./steps/source.js";
 import { renderTrain, enableExport } from "./steps/train.js";
 import { renderTest } from "./steps/test.js";
+import { renderVoice } from "./steps/voice.js";
+import { renderCall } from "./steps/call.js";
 
 const state = {
   personaId: null,
@@ -17,7 +19,8 @@ const state = {
   },
 };
 
-const stepMounted = { source: false, train: false, test: false };
+const stepMounted = { source: false, train: false, test: false, voice: false, call: false };
+const stepDisposers = {};
 let currentStep = "source";
 let gpuInterval = null;
 
@@ -83,6 +86,8 @@ function renderPersonaList() {
       if (persona?.dataset_id) state.datasetId = persona.dataset_id;
       renderPersonaList();
       if (persona?.status === "trained") enableExport(state);
+      ["train", "test", "voice", "call"].forEach(unmountStep);
+      mountStep(currentStep);
     };
     el.addEventListener("click", select);
     el.addEventListener("keydown", (e) => {
@@ -108,6 +113,7 @@ function setupStepNav() {
 
 function goToStep(step) {
   currentStep = step;
+  document.dispatchEvent(new CustomEvent("personafinetuner:stepchange", { detail: step }));
   document.querySelectorAll(".step-tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.step === step);
     t.setAttribute("aria-selected", t.dataset.step === step ? "true" : "false");
@@ -135,8 +141,23 @@ function mountStep(step) {
     });
   } else if (step === "test") {
     renderTest(panel, state);
+  } else if (step === "voice") {
+    stepDisposers.voice = renderVoice(panel, state, async () => {
+      await loadPersonas();
+      unmountStep("call");
+    });
+  } else if (step === "call") {
+    stepDisposers.call = renderCall(panel, state);
   }
   stepMounted[step] = true;
+}
+
+function unmountStep(step) {
+  stepDisposers[step]?.();
+  delete stepDisposers[step];
+  stepMounted[step] = false;
+  const panel = document.getElementById(`step-${step}`);
+  if (panel) panel.innerHTML = "";
 }
 
 function escapeHtml(s) {

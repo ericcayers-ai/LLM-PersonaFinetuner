@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import Any, Optional
 
 from app.config import settings
 from app.models.schemas import PersonaStatus
+
+_write_lock = threading.RLock()
 
 
 def _now() -> datetime:
@@ -24,8 +27,15 @@ def _read_json(path: Path) -> Any:
 
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, default=str)
+    temp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    with _write_lock:
+        try:
+            with temp_path.open("w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+                f.flush()
+            temp_path.replace(path)
+        finally:
+            temp_path.unlink(missing_ok=True)
 
 
 def _meta_path(kind: str, item_id: str) -> Path:
@@ -127,6 +137,7 @@ def create_persona(
         "base_model": base_model or settings.default_base_model,
         "status": PersonaStatus.DRAFT.value,
         "adapter_path": None,
+        "voice_profile": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -164,6 +175,55 @@ def adapter_dir_for(persona_id: str) -> Path:
     return settings.adapters_dir / persona_id
 
 
+def save_voice_profile(
+    persona_id: str,
+    filename: str,
+    content: bytes,
+    *,
+    language: str,
+    consent_confirmed: bool,
+) -> Optional[dict]:
+    if not get_persona(persona_id):
+        return None
+
+    voice_dir = settings.voices_dir / persona_id
+    voice_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(filename).suffix.lower()
+    sample_path = voice_dir / f"reference{ext}"
+    temp_path = voice_dir / f".reference-{uuid.uuid4().hex}{ext}.tmp"
+    try:
+        temp_path.write_bytes(content)
+        temp_path.replace(sample_path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+    for previous in voice_dir.glob("reference.*"):
+        if previous != sample_path:
+            previous.unlink(missing_ok=True)
+    profile = {
+        "persona_id": persona_id,
+        "sample_filename": Path(filename).name,
+        "sample_path": str(sample_path),
+        "sample_size_bytes": len(content),
+        "language": language,
+        "consent_confirmed": consent_confirmed,
+        "created_at": _now().isoformat(),
+    }
+    update_persona(persona_id, voice_profile=profile)
+    return profile
+
+
+def delete_voice_profile(persona_id: str) -> bool:
+    persona = get_persona(persona_id)
+    if not persona or not persona.get("voice_profile"):
+        return False
+    voice_dir = settings.voices_dir / persona_id
+    if voice_dir.exists():
+        shutil.rmtree(voice_dir)
+    update_persona(persona_id, voice_profile=None)
+    return True
+
+
 def delete_persona(persona_id: str) -> bool:
     path = _meta_path("personas", persona_id)
     if not path.exists():
@@ -172,4 +232,7 @@ def delete_persona(persona_id: str) -> bool:
     adapter_dir = adapter_dir_for(persona_id)
     if adapter_dir.exists():
         shutil.rmtree(adapter_dir)
+    voice_dir = settings.voices_dir / persona_id
+    if voice_dir.exists():
+        shutil.rmtree(voice_dir)
     return True
