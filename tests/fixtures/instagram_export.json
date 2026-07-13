@@ -1,0 +1,33 @@
+{
+  "participants": [
+    {"name": "Friend User"},
+    {"name": "Target Sender"}
+  ],
+  "messages": [
+    {
+      "sender_name": "Friend User",
+      "timestamp_ms": 1705312800000,
+      "content": "Hey! Long time no talk."
+    },
+    {
+      "sender_name": "Target Sender",
+      "timestamp_ms": 1705312860000,
+      "content": "I know! Life's been busy but good."
+    },
+    {
+      "sender_name": "Friend User",
+      "timestamp_ms": 1705312920000,
+      "content": "What's new with you?"
+    },
+    {
+      "sender_name": "Target Sender",
+      "timestamp_ms": 1705312980000,
+      "content": "Started journaling again. Helps me think clearly."
+    },
+    {
+      "sender_name": "Friend User",
+      "timestamp_ms": 1705313040000,
+      "photos": [{"uri": "photo.jpg"}]
+    }
+  ]
+}

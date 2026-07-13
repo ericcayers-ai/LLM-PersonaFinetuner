@@ -1,0 +1,42 @@
+[
+  {
+    "type": "Default",
+    "timestamp": "2024-01-15T10:00:00.000Z",
+    "content": "Hey, how are you?",
+    "author": {"id": "1", "name": "friend_user", "discriminator": "0000"},
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "type": "Default",
+    "timestamp": "2024-01-15T10:01:00.000Z",
+    "content": "Doing great! Just working on some writing.",
+    "author": {"id": "2", "name": "target_user", "discriminator": "0000"},
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "type": "Default",
+    "timestamp": "2024-01-15T10:02:00.000Z",
+    "content": "Nice! What are you writing about?",
+    "author": {"id": "1", "name": "friend_user", "discriminator": "0000"},
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "type": "Default",
+    "timestamp": "2024-01-15T10:03:00.000Z",
+    "content": "A piece about how ideas emerge when you stop forcing them.",
+    "author": {"id": "2", "name": "target_user", "discriminator": "0000"},
+    "attachments": [],
+    "embeds": []
+  },
+  {
+    "type": "Default",
+    "timestamp": "2024-01-15T10:04:00.000Z",
+    "content": "",
+    "author": {"id": "1", "name": "friend_user", "discriminator": "0000"},
+    "attachments": [{"url": "https://example.com/image.png"}],
+    "embeds": []
+  }
+]

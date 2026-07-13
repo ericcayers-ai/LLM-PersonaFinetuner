@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PersonaFinetuner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <h1 class="brand-title">PersonaFinetuner</h1>
+        <p class="brand-tagline">Transfer a voice into a model</p>
+      </div>
+      <div id="gpu-badge" class="gpu-badge" aria-live="polite">
+        <span class="gpu-dot"></span>
+        <span class="gpu-text">Checking GPU…</span>
+      </div>
+    </header>
+
+    <section class="voice-bridge" id="voice-bridge" aria-hidden="true">
+      <div class="bridge-panel bridge-source">
+        <span class="bridge-label">Source sample</span>
+        <p class="bridge-text" id="bridge-source-text">"I think the best ideas come when you're not trying too hard — just following a thread until it leads somewhere unexpected."</p>
+      </div>
+      <div class="bridge-morph" id="bridge-morph">
+        <div class="morph-line"></div>
+        <div class="morph-glow"></div>
+      </div>
+      <div class="bridge-panel bridge-clone">
+        <span class="bridge-label">Clone output</span>
+        <p class="bridge-text" id="bridge-clone-text">"The interesting part is letting one thought pull the next — no forcing, just seeing where the line goes."</p>
+      </div>
+    </section>
+
+    <div class="app-body">
+      <aside class="sidebar" aria-label="Saved personas">
+        <h2 class="sidebar-title">Personas</h2>
+        <ul id="persona-list" class="persona-list">
+          <li class="persona-empty">No personas yet</li>
+        </ul>
+      </aside>
+
+      <main class="main-canvas">
+        <nav class="step-nav" aria-label="Workflow steps">
+          <button type="button" class="step-tab active" data-step="source">Source</button>
+          <span class="step-arrow" aria-hidden="true">→</span>
+          <button type="button" class="step-tab" data-step="train">Train</button>
+          <span class="step-arrow" aria-hidden="true">→</span>
+          <button type="button" class="step-tab" data-step="test">Test</button>
+        </nav>
+
+        <div id="step-source" class="step-panel active"></div>
+        <div id="step-train" class="step-panel"></div>
+        <div id="step-test" class="step-panel"></div>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
