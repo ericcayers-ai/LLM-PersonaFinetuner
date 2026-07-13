@@ -2,13 +2,20 @@ from fastapi import APIRouter
 
 from app.core.gguf_export import export_for_ollama
 from app.errors import api_error
-from app.models.schemas import ExportResponse, PersonaCreate, PersonaResponse, PersonaStatus
+from app.models.schemas import (
+    ExportResponse,
+    PersonaCreate,
+    PersonaResponse,
+    PersonaStatus,
+    VoiceProfileResponse,
+)
 from app.storage import store
 
 router = APIRouter(prefix="/api/personas", tags=["personas"])
 
 
 def _to_response(record: dict) -> PersonaResponse:
+    profile = record.get("voice_profile")
     return PersonaResponse(
         id=record["id"],
         name=record["name"],
@@ -17,6 +24,7 @@ def _to_response(record: dict) -> PersonaResponse:
         base_model=record.get("base_model", ""),
         status=PersonaStatus(record.get("status", "draft")),
         adapter_path=record.get("adapter_path"),
+        voice_profile=VoiceProfileResponse.model_validate(profile) if profile else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

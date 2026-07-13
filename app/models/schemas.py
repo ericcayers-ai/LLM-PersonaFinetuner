@@ -71,6 +71,15 @@ class PersonaCreate(BaseModel):
     base_model: Optional[str] = None
 
 
+class VoiceProfileResponse(BaseModel):
+    persona_id: str
+    sample_filename: str
+    sample_size_bytes: int
+    language: str = "en"
+    consent_confirmed: bool
+    created_at: datetime
+
+
 class PersonaResponse(BaseModel):
     id: str
     name: str
@@ -79,6 +88,7 @@ class PersonaResponse(BaseModel):
     base_model: str
     status: PersonaStatus
     adapter_path: Optional[str] = None
+    voice_profile: Optional[VoiceProfileResponse] = None
     created_at: datetime
     updated_at: datetime
 
@@ -145,6 +155,37 @@ class ChatResponse(BaseModel):
     base_response: Optional[str] = None
 
 
+class SynthesisRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1200)
+    language: str = Field(default="en", min_length=2, max_length=8)
+
+
+class TranscriptionSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionResponse(BaseModel):
+    text: str
+    language: str
+    language_probability: float
+    duration_seconds: float
+    segments: list[TranscriptionSegment] = Field(default_factory=list)
+
+
+class VoiceCapabilitiesResponse(BaseModel):
+    tts_engine: str
+    stt_engine: str
+    tts_model: str
+    stt_model: str
+    tts_installed: bool
+    stt_installed: bool
+    transport: str = "websocket"
+    sample_rate_hz: int = 24000
+    supported_voice_formats: list[str] = Field(default_factory=list)
+
+
 class ExportResponse(BaseModel):
     persona_id: str
     status: str
@@ -159,7 +200,7 @@ class ExportResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     app_name: str
-    version: str = "1.1.0"
+    version: str = "1.2.0"
     available_models: list[str]
     cuda_available: bool = False
     gpu_name: Optional[str] = None

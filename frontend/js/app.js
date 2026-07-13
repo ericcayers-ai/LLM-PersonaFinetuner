@@ -2,6 +2,8 @@ import { api, showToast } from "./api.js";
 import { renderSource } from "./steps/source.js";
 import { renderTrain, enableExport } from "./steps/train.js";
 import { renderTest } from "./steps/test.js";
+import { renderVoice } from "./steps/voice.js";
+import { renderCall } from "./steps/call.js";
 
 const state = {
   personaId: null,
@@ -17,7 +19,7 @@ const state = {
   },
 };
 
-const stepMounted = { source: false, train: false, test: false };
+const stepMounted = { source: false, train: false, test: false, voice: false, call: false };
 let currentStep = "source";
 let gpuInterval = null;
 
@@ -83,6 +85,11 @@ function renderPersonaList() {
       if (persona?.dataset_id) state.datasetId = persona.dataset_id;
       renderPersonaList();
       if (persona?.status === "trained") enableExport(state);
+      ["train", "test", "voice", "call"].forEach((step) => {
+        stepMounted[step] = false;
+        document.getElementById(`step-${step}`).innerHTML = "";
+      });
+      mountStep(currentStep);
     };
     el.addEventListener("click", select);
     el.addEventListener("keydown", (e) => {
@@ -108,6 +115,7 @@ function setupStepNav() {
 
 function goToStep(step) {
   currentStep = step;
+  document.dispatchEvent(new CustomEvent("personafinetuner:stepchange", { detail: step }));
   document.querySelectorAll(".step-tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.step === step);
     t.setAttribute("aria-selected", t.dataset.step === step ? "true" : "false");
@@ -135,6 +143,14 @@ function mountStep(step) {
     });
   } else if (step === "test") {
     renderTest(panel, state);
+  } else if (step === "voice") {
+    renderVoice(panel, state, async () => {
+      await loadPersonas();
+      stepMounted.call = false;
+      document.getElementById("step-call").innerHTML = "";
+    });
+  } else if (step === "call") {
+    renderCall(panel, state);
   }
   stepMounted[step] = true;
 }

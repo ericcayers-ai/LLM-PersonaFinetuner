@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     datasets_dir: Path = Path("data/datasets")
     outputs_dir: Path = Path("outputs")
     adapters_dir: Path = Path("outputs/adapters")
+    voices_dir: Path = Path("data/voices")
 
     default_base_model: str = "unsloth/Llama-3.2-3B-Instruct-bnb-4bit"
     available_models: list[str] = [
@@ -36,8 +37,16 @@ class Settings(BaseSettings):
     min_samples_warning: int = 20
 
     frontend_dir: Path = Path("frontend")
-    app_version: str = "1.1.0"
+    app_version: str = "1.2.0"
     max_upload_bytes: int = 50 * 1024 * 1024  # 50 MB
+    max_voice_upload_bytes: int = 25 * 1024 * 1024  # 25 MB
+    max_call_utterance_bytes: int = 12 * 1024 * 1024  # 12 MB
+    max_tts_characters: int = 1200
+    stt_model: str = "turbo"
+    stt_device: str = "auto"
+    stt_compute_type: str = "auto"
+    tts_model: str = "turbo"
+    tts_device: str = "auto"
 
 
 settings = Settings()
@@ -51,5 +60,6 @@ def ensure_dirs() -> None:
         settings.datasets_dir,
         settings.outputs_dir,
         settings.adapters_dir,
+        settings.voices_dir,
     ):
         path.mkdir(parents=True, exist_ok=True)
