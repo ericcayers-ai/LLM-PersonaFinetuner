@@ -20,6 +20,7 @@ const state = {
 };
 
 const stepMounted = { source: false, train: false, test: false, voice: false, call: false };
+const stepDisposers = {};
 let currentStep = "source";
 let gpuInterval = null;
 
@@ -85,10 +86,7 @@ function renderPersonaList() {
       if (persona?.dataset_id) state.datasetId = persona.dataset_id;
       renderPersonaList();
       if (persona?.status === "trained") enableExport(state);
-      ["train", "test", "voice", "call"].forEach((step) => {
-        stepMounted[step] = false;
-        document.getElementById(`step-${step}`).innerHTML = "";
-      });
+      ["train", "test", "voice", "call"].forEach(unmountStep);
       mountStep(currentStep);
     };
     el.addEventListener("click", select);
@@ -144,15 +142,22 @@ function mountStep(step) {
   } else if (step === "test") {
     renderTest(panel, state);
   } else if (step === "voice") {
-    renderVoice(panel, state, async () => {
+    stepDisposers.voice = renderVoice(panel, state, async () => {
       await loadPersonas();
-      stepMounted.call = false;
-      document.getElementById("step-call").innerHTML = "";
+      unmountStep("call");
     });
   } else if (step === "call") {
-    renderCall(panel, state);
+    stepDisposers.call = renderCall(panel, state);
   }
   stepMounted[step] = true;
+}
+
+function unmountStep(step) {
+  stepDisposers[step]?.();
+  delete stepDisposers[step];
+  stepMounted[step] = false;
+  const panel = document.getElementById(`step-${step}`);
+  if (panel) panel.innerHTML = "";
 }
 
 function escapeHtml(s) {

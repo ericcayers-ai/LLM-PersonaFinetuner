@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PF_", env_file=".env", extra="ignore")
 
     app_name: str = "PersonaFinetuner"
+    allowed_origins: list[str] = [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ]
     data_dir: Path = Path("data")
     uploads_dir: Path = Path("data/uploads")
     personas_dir: Path = Path("data/personas")

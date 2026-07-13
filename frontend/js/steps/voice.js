@@ -16,7 +16,13 @@ export function renderVoice(container, state, onProfileChanged) {
         <div id="voice-profile-status" class="profile-status">No voice reference saved.</div>
         <div class="form-row">
           <label for="voice-file">Reference audio</label>
-          <input id="voice-file" type="file" accept=".wav,.mp3,.m4a,.flac,.ogg,.webm,audio/*" ${hasPersona ? "" : "disabled"} />
+          <input id="voice-file" type="file" accept=".wav,audio/wav" ${hasPersona ? "" : "disabled"} />
+        </div>
+        <div class="form-row">
+          <label for="voice-language">Reference language</label>
+          <select id="voice-language" ${hasPersona ? "" : "disabled"}>
+            ${languageOptions()}
+          </select>
         </div>
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="record-reference" ${hasPersona ? "" : "disabled"}>Record reference</button>
@@ -48,6 +54,7 @@ export function renderVoice(container, state, onProfileChanged) {
   `;
 
   const fileInput = container.querySelector("#voice-file");
+  const languageSelect = container.querySelector("#voice-language");
   const recordReferenceBtn = container.querySelector("#record-reference");
   const saveBtn = container.querySelector("#save-voice");
   const removeBtn = container.querySelector("#remove-voice");
@@ -140,6 +147,12 @@ export function renderVoice(container, state, onProfileChanged) {
         <span class="${info.stt_installed ? "engine-ok" : "engine-missing"}">STT · ${escapeHtml(info.stt_model)}</span>
         <span>Transport · WebSocket</span>
       `;
+      if (info.tts_model === "turbo") {
+        languageSelect.value = "en";
+        [...languageSelect.options].forEach((option) => {
+          option.disabled = option.value !== "en";
+        });
+      }
     } catch (error) {
       status.textContent = error.message;
     }
@@ -151,6 +164,7 @@ export function renderVoice(container, state, onProfileChanged) {
       const profile = await api.getVoiceProfile(state.personaId);
       profileStatus.textContent = `${profile.sample_filename} · ${formatBytes(profile.sample_size_bytes)} · ${profile.language}`;
       profileStatus.classList.add("ready");
+      languageSelect.value = profile.language;
       removeBtn.hidden = false;
     } catch (_) {
       profileStatus.textContent = "No voice reference saved.";
@@ -178,7 +192,7 @@ export function renderVoice(container, state, onProfileChanged) {
     }
     setLoading(saveBtn, true, "Saving…");
     try {
-      await api.uploadVoiceProfile(state.personaId, file, true, "en");
+      await api.uploadVoiceProfile(state.personaId, file, true, languageSelect.value);
       await loadProfile();
       await onProfileChanged?.();
       showToast("Cloned voice is ready", "success");
@@ -205,7 +219,7 @@ export function renderVoice(container, state, onProfileChanged) {
     if (!text) return;
     setLoading(speakBtn, true, "Generating…");
     try {
-      const audio = await api.synthesize(state.personaId, text);
+      const audio = await api.synthesize(state.personaId, text, languageSelect.value);
       ttsUrl = showAudio(ttsPreview, audio, ttsUrl);
       await ttsPreview.play();
     } catch (error) {
@@ -216,16 +230,30 @@ export function renderVoice(container, state, onProfileChanged) {
   });
 
   const onStepChange = (event) => {
-    if (event.detail !== "voice" && capture) {
-      capture.close();
-      capture = null;
-      recordingPurpose = null;
-      clearTimeout(recordingTimer);
+    if (event.detail !== "voice") {
+      if (capture) {
+        capture.close();
+        capture = null;
+        recordingPurpose = null;
+        clearTimeout(recordingTimer);
+      }
+      ttsPreview.pause();
+      referencePreview.pause();
     }
   };
   document.addEventListener("personafinetuner:stepchange", onStepChange);
   loadCapabilities();
   loadProfile();
+  return () => {
+    document.removeEventListener("personafinetuner:stepchange", onStepChange);
+    clearTimeout(recordingTimer);
+    capture?.close();
+    capture = null;
+    ttsPreview.pause();
+    referencePreview.pause();
+    if (referenceUrl) URL.revokeObjectURL(referenceUrl);
+    if (ttsUrl) URL.revokeObjectURL(ttsUrl);
+  };
 }
 
 function formatBytes(bytes) {
@@ -236,4 +264,17 @@ function formatBytes(bytes) {
 
 function escapeHtml(value) {
   return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function languageOptions() {
+  const languages = {
+    en: "English", ar: "Arabic", da: "Danish", de: "German", el: "Greek",
+    es: "Spanish", fi: "Finnish", fr: "French", he: "Hebrew", hi: "Hindi",
+    it: "Italian", ja: "Japanese", ko: "Korean", ms: "Malay", nl: "Dutch",
+    no: "Norwegian", pl: "Polish", pt: "Portuguese", ru: "Russian",
+    sv: "Swedish", sw: "Swahili", tr: "Turkish", zh: "Chinese",
+  };
+  return Object.entries(languages)
+    .map(([code, name]) => `<option value="${code}">${name}</option>`)
+    .join("");
 }

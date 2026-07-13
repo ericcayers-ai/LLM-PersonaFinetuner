@@ -182,9 +182,14 @@ export function renderCall(container, state) {
 
   startBtn.addEventListener("click", startCall);
   endBtn.addEventListener("click", () => endCall());
-  document.addEventListener("personafinetuner:stepchange", (event) => {
+  const onStepChange = (event) => {
     if (event.detail !== "call" && !callEnded) endCall("Call ended");
-  });
+  };
+  document.addEventListener("personafinetuner:stepchange", onStepChange);
+  return () => {
+    document.removeEventListener("personafinetuner:stepchange", onStepChange);
+    endCall("Call ended");
+  };
 }
 
 function escapeHtml(value) {

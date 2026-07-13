@@ -6,11 +6,27 @@ import wave
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
+from app.config import ensure_dirs, settings
 from app.main import app
 
 client = TestClient(app)
 FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def isolated_api_storage(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    outputs_dir = tmp_path / "outputs"
+    monkeypatch.setattr(settings, "data_dir", data_dir)
+    monkeypatch.setattr(settings, "uploads_dir", data_dir / "uploads")
+    monkeypatch.setattr(settings, "personas_dir", data_dir / "personas")
+    monkeypatch.setattr(settings, "datasets_dir", data_dir / "datasets")
+    monkeypatch.setattr(settings, "voices_dir", data_dir / "voices")
+    monkeypatch.setattr(settings, "outputs_dir", outputs_dir)
+    monkeypatch.setattr(settings, "adapters_dir", outputs_dir / "adapters")
+    ensure_dirs()
 
 
 class TestHealth:
@@ -146,7 +162,7 @@ class TestInferenceAPI:
         assert res.status_code in (400, 404, 422)
 
 
-def _wav_bytes(duration_seconds: int = 4, sample_rate: int = 16000) -> bytes:
+def _wav_bytes(duration_seconds: int = 6, sample_rate: int = 16000) -> bytes:
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
         wav.setnchannels(1)
@@ -193,11 +209,31 @@ class TestVoiceAPI:
         persona = _voice_persona()
         res = client.post(
             f"/api/voice/{persona['id']}/profile",
-            files={"file": ("reference.wav", _wav_bytes(1), "audio/wav")},
+            files={"file": ("reference.wav", _wav_bytes(4), "audio/wav")},
             data={"consent_confirmed": "true", "language": "en"},
         )
         assert res.status_code == 400
         assert res.json()["error"] == "invalid_reference_duration"
+
+    def test_voice_profile_requires_pcm_wav(self):
+        persona = _voice_persona()
+        res = client.post(
+            f"/api/voice/{persona['id']}/profile",
+            files={"file": ("reference.webm", b"not-a-wave", "audio/webm")},
+            data={"consent_confirmed": "true", "language": "en"},
+        )
+        assert res.status_code == 400
+        assert res.json()["error"] == "unsupported_reference_format"
+
+    def test_turbo_voice_profile_rejects_non_english(self):
+        persona = _voice_persona()
+        res = client.post(
+            f"/api/voice/{persona['id']}/profile",
+            files={"file": ("reference.wav", _wav_bytes(), "audio/wav")},
+            data={"consent_confirmed": "true", "language": "fr"},
+        )
+        assert res.status_code == 400
+        assert res.json()["error"] == "unsupported_language"
 
     def test_upload_and_get_voice_profile(self):
         persona = _voice_persona()
@@ -305,3 +341,12 @@ class TestVoiceAPI:
             assert websocket.receive_json()["type"] == "audio"
             assert websocket.receive_bytes() == b"RIFF-call-audio"
             assert websocket.receive_json()["type"] == "ready"
+
+    def test_live_call_rejects_cross_origin_browser(self):
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with client.websocket_connect(
+                "/api/voice/call/any-persona",
+                headers={"origin": "https://evil.example"},
+            ):
+                pass
+        assert exc.value.code == 4403

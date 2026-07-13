@@ -70,8 +70,9 @@ This is a local browser-to-app call path, not PSTN/SIP telephony. It is designed
 | `PF_STT_DEVICE` | `auto` | `auto`, `cuda`, or `cpu` |
 | `PF_STT_COMPUTE_TYPE` | `auto` | CTranslate2 compute type |
 | `PF_MAX_VOICE_UPLOAD_BYTES` | `26214400` | Voice-reference upload limit |
+| `PF_ALLOWED_ORIGINS` | local app URLs | JSON list of trusted cross-origin API clients |
 
-For best cloning, record one consenting speaker for 8–15 seconds in a quiet room without music, reverb, or other voices. WAV references are checked to be 3–30 seconds long.
+For best cloning, record one consenting speaker for 8–15 seconds in a quiet room without music, reverb, or other voices. References must be uncompressed PCM WAV and are checked to be longer than 5 seconds and no more than 30 seconds.
 
 ### Responsible voice cloning
 

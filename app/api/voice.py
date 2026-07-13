@@ -9,6 +9,7 @@ import uuid
 import wave
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
@@ -29,6 +30,7 @@ from app.storage import store
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 SUPPORTED_AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".webm"}
+SUPPORTED_REFERENCE_EXTENSIONS = {".wav"}
 SUPPORTED_LANGUAGES = {
     "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja",
     "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh",
@@ -41,6 +43,13 @@ def _profile_response(profile: dict) -> VoiceProfileResponse:
 
 def _validate_audio(content: bytes, filename: str, *, reference: bool = False) -> str:
     ext = Path(filename).suffix.lower()
+    if reference and ext not in SUPPORTED_REFERENCE_EXTENSIONS:
+        raise api_error(
+            400,
+            "unsupported_reference_format",
+            "Voice references must be uncompressed PCM WAV files.",
+            hint="Record in the Voice step or convert the clip to WAV first.",
+        )
     if ext not in SUPPORTED_AUDIO_EXTENSIONS:
         raise api_error(
             400,
@@ -66,16 +75,38 @@ def _validate_audio(content: bytes, filename: str, *, reference: bool = False) -
         try:
             with wave.open(io.BytesIO(content), "rb") as wav:
                 duration = wav.getnframes() / max(wav.getframerate(), 1)
+                compression = wav.getcomptype()
         except (wave.Error, EOFError) as exc:
             raise api_error(400, "invalid_audio", "The WAV file could not be decoded.") from exc
-        if not 3 <= duration <= 30:
+        if compression != "NONE":
+            raise api_error(
+                400,
+                "invalid_audio",
+                "Voice references must use uncompressed PCM WAV encoding.",
+            )
+        if not 5 < duration <= 30:
             raise api_error(
                 400,
                 "invalid_reference_duration",
-                "Voice references must be between 3 and 30 seconds.",
+                "Voice references must be longer than 5 seconds and no more than 30 seconds.",
                 hint="Use a clean 8–15 second recording with one speaker and little background noise.",
             )
     return ext
+
+
+async def _read_limited(file: UploadFile, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > limit:
+            raise api_error(
+                400,
+                "audio_too_large",
+                f"Audio exceeds the {limit // (1024 * 1024)} MB limit.",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @router.get("/capabilities", response_model=VoiceCapabilitiesResponse)
@@ -88,7 +119,7 @@ def capabilities() -> VoiceCapabilitiesResponse:
         tts_installed=voice_engine.is_installed(),
         stt_installed=stt_engine.is_installed(),
         sample_rate_hz=24000,
-        supported_voice_formats=sorted(SUPPORTED_AUDIO_EXTENSIONS),
+        supported_voice_formats=sorted(SUPPORTED_REFERENCE_EXTENSIONS),
     )
 
 
@@ -99,7 +130,7 @@ async def transcribe_audio(
 ) -> TranscriptionResponse:
     if not file.filename:
         raise api_error(400, "missing_filename", "No audio filename was provided.")
-    content = await file.read()
+    content = await _read_limited(file, settings.max_call_utterance_bytes)
     _validate_audio(content, file.filename)
     if language and language.lower() not in SUPPORTED_LANGUAGES:
         raise api_error(400, "unsupported_language", "Unsupported language code.")
@@ -150,8 +181,15 @@ async def save_voice_profile(
     language = language.lower()
     if language not in SUPPORTED_LANGUAGES:
         raise api_error(400, "unsupported_language", "Unsupported language code.")
+    if settings.tts_model == "turbo" and language != "en":
+        raise api_error(
+            400,
+            "unsupported_language",
+            "Chatterbox Turbo voice profiles must use English.",
+            hint="Set PF_TTS_MODEL=multilingual-v3 to use another language.",
+        )
 
-    content = await file.read()
+    content = await _read_limited(file, settings.max_voice_upload_bytes)
     _validate_audio(content, file.filename, reference=True)
     profile = store.save_voice_profile(
         persona_id,
@@ -225,8 +263,23 @@ async def _send_call_error(
     )
 
 
+def _websocket_origin_allowed(websocket: WebSocket) -> bool:
+    origin = websocket.headers.get("origin")
+    if not origin:
+        return True
+    host = websocket.headers.get("host", "")
+    parsed = urlsplit(origin)
+    return (
+        parsed.netloc == host
+        or origin.rstrip("/") in {item.rstrip("/") for item in settings.allowed_origins}
+    )
+
+
 @router.websocket("/call/{persona_id}")
 async def voice_call(websocket: WebSocket, persona_id: str) -> None:
+    if not _websocket_origin_allowed(websocket):
+        await websocket.close(code=4403, reason="Cross-origin voice calls are not allowed.")
+        return
     await websocket.accept()
     persona = store.get_persona(persona_id)
     if not persona:
@@ -255,74 +308,127 @@ async def voice_call(websocket: WebSocket, persona_id: str) -> None:
 
     call_id = str(uuid.uuid4())
     history: list[dict[str, str]] = []
-    await websocket.send_json(
-        {
-            "type": "ready",
-            "call_id": call_id,
-            "message": "Listening",
-            "stt_model": settings.stt_model,
-            "tts_model": settings.tts_model,
-        }
-    )
+    turn_queue: asyncio.Queue[Optional[bytes]] = asyncio.Queue(maxsize=1)
+    send_lock = asyncio.Lock()
+    connected = True
 
-    try:
-        while True:
-            message = await websocket.receive()
-            if message["type"] == "websocket.disconnect":
-                break
-            if message.get("text") is not None:
-                try:
-                    control = json.loads(message["text"])
-                except json.JSONDecodeError:
-                    await _send_call_error(
-                        websocket, "invalid_message", "Invalid call control message.", recoverable=True
+    async def send_json(payload: dict) -> bool:
+        nonlocal connected
+        if not connected:
+            return False
+        try:
+            async with send_lock:
+                await websocket.send_json(payload)
+            return True
+        except Exception:
+            connected = False
+            return False
+
+    async def send_error(code: str, message: str, *, recoverable: bool) -> bool:
+        return await send_json(
+            {
+                "type": "error",
+                "code": code,
+                "message": message,
+                "recoverable": recoverable,
+            }
+        )
+
+    async def send_ready() -> bool:
+        return await send_json(
+            {"type": "ready", "call_id": call_id, "message": "Listening"}
+        )
+
+    async def receive_messages() -> None:
+        nonlocal connected
+        try:
+            while connected:
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+                if message.get("text") is not None:
+                    try:
+                        control = json.loads(message["text"])
+                    except json.JSONDecodeError:
+                        await send_error(
+                            "invalid_message",
+                            "Invalid call control message.",
+                            recoverable=True,
+                        )
+                        continue
+                    if control.get("type") == "ping":
+                        await send_json({"type": "pong"})
+                    continue
+
+                audio = message.get("bytes")
+                if audio is None:
+                    continue
+                if not audio:
+                    await send_error(
+                        "empty_audio", "The utterance was empty.", recoverable=True
+                    )
+                    await send_ready()
+                    continue
+                if len(audio) > settings.max_call_utterance_bytes:
+                    await send_error(
+                        "audio_too_large",
+                        "The utterance exceeded the call audio limit.",
+                        recoverable=True,
+                    )
+                    await send_ready()
+                    continue
+                if turn_queue.full():
+                    await send_error(
+                        "turn_in_progress",
+                        "Wait for the current response before speaking again.",
+                        recoverable=True,
                     )
                     continue
-                if control.get("type") == "ping":
-                    await websocket.send_json({"type": "pong"})
-                continue
+                await turn_queue.put(audio)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            connected = False
+            try:
+                turn_queue.put_nowait(None)
+            except asyncio.QueueFull:
+                pass
 
-            audio = message.get("bytes")
-            if audio is None:
-                continue
-            if not audio:
-                await _send_call_error(
-                    websocket, "empty_audio", "The utterance was empty.", recoverable=True
-                )
-                continue
-            if len(audio) > settings.max_call_utterance_bytes:
-                await _send_call_error(
-                    websocket,
-                    "audio_too_large",
-                    "The utterance exceeded the call audio limit.",
-                    recoverable=True,
-                )
-                await websocket.send_json({"type": "ready", "call_id": call_id, "message": "Listening"})
-                continue
+    async def process_turns() -> None:
+        nonlocal history
+        while connected:
+            audio = await turn_queue.get()
+            if audio is None or not connected:
+                return
 
-            await websocket.send_json({"type": "state", "state": "transcribing"})
+            if not await send_json({"type": "state", "state": "transcribing"}):
+                return
             try:
                 transcript = await asyncio.to_thread(stt_engine.transcribe, audio)
             except ValueError as exc:
-                await _send_call_error(websocket, "no_speech", str(exc), recoverable=True)
-                await websocket.send_json({"type": "ready", "call_id": call_id, "message": "Listening"})
+                await send_error("no_speech", str(exc), recoverable=True)
+                await send_ready()
                 continue
             except Exception as exc:
-                await _send_call_error(websocket, "stt_failed", str(exc), recoverable=True)
-                await websocket.send_json({"type": "ready", "call_id": call_id, "message": "Listening"})
+                await send_error("stt_failed", str(exc), recoverable=True)
+                await send_ready()
                 continue
+            if not connected:
+                return
 
             user_text = transcript["text"]
             history.append({"role": "user", "content": user_text})
             history = history[-20:]
-            await websocket.send_json(
+            if not await send_json(
                 {
                     "type": "user_transcript",
                     "text": user_text,
                     "language": transcript["language"],
                 }
-            )
-            await websocket.send_json({"type": "state", "state": "thinking"})
+            ):
+                return
+            if not await send_json({"type": "state", "state": "thinking"}):
+                return
 
             try:
                 result = await asyncio.to_thread(
@@ -332,26 +438,59 @@ async def voice_call(websocket: WebSocket, persona_id: str) -> None:
                     max_tokens=240,
                     temperature=0.7,
                 )
+                if not connected:
+                    return
                 assistant_text = result["response"]
                 history.append({"role": "assistant", "content": assistant_text})
                 history = history[-20:]
-                await websocket.send_json(
+                if not await send_json(
                     {"type": "assistant_transcript", "text": assistant_text}
-                )
-                await websocket.send_json({"type": "state", "state": "speaking"})
+                ):
+                    return
+                if not await send_json({"type": "state", "state": "speaking"}):
+                    return
                 speech = await asyncio.to_thread(
                     voice_engine.synthesize,
                     assistant_text,
                     profile["sample_path"],
                     language=profile.get("language", "en"),
                 )
-                await websocket.send_json(
-                    {"type": "audio", "content_type": "audio/wav", "size_bytes": len(speech)}
-                )
-                await websocket.send_bytes(speech)
+                if not connected:
+                    return
+                if not await send_json(
+                    {
+                        "type": "audio",
+                        "content_type": "audio/wav",
+                        "size_bytes": len(speech),
+                    }
+                ):
+                    return
+                async with send_lock:
+                    await websocket.send_bytes(speech)
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
-                await _send_call_error(websocket, "response_failed", str(exc), recoverable=True)
+                await send_error("response_failed", str(exc), recoverable=True)
 
-            await websocket.send_json({"type": "ready", "call_id": call_id, "message": "Listening"})
-    except WebSocketDisconnect:
-        return
+            if not await send_ready():
+                return
+
+    await websocket.send_json(
+        {
+            "type": "ready",
+            "call_id": call_id,
+            "message": "Listening",
+            "stt_model": settings.stt_model,
+            "tts_model": settings.tts_model,
+        }
+    )
+    reader = asyncio.create_task(receive_messages())
+    worker = asyncio.create_task(process_turns())
+    done, pending = await asyncio.wait(
+        {reader, worker},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    connected = False
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*done, *pending, return_exceptions=True)

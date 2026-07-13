@@ -57,10 +57,24 @@ class SpeechToTextEngine:
                     compute_type=compute_type,
                 )
             except Exception as exc:
-                raise RuntimeError(
-                    f"Could not load faster-whisper model '{settings.stt_model}' "
-                    f"on {device}: {exc}"
-                ) from exc
+                if settings.stt_device == "auto" and device == "cuda":
+                    try:
+                        self._model = WhisperModel(
+                            settings.stt_model,
+                            device="cpu",
+                            compute_type="int8",
+                        )
+                        device = "cpu"
+                    except Exception as cpu_exc:
+                        raise RuntimeError(
+                            f"Could not load faster-whisper model '{settings.stt_model}' "
+                            f"on CUDA ({exc}) or CPU ({cpu_exc})."
+                        ) from cpu_exc
+                else:
+                    raise RuntimeError(
+                        f"Could not load faster-whisper model '{settings.stt_model}' "
+                        f"on {device}: {exc}"
+                    ) from exc
             self._device = device
             return self._model
 

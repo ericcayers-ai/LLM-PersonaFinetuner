@@ -84,11 +84,11 @@ export class MicrophoneCapture {
   }
 
   stopManual() {
-    if (this.mode !== "manual" || !this.chunks.length) return null;
-    const blob = encodeWav(this.chunks, this.context.sampleRate);
+    if (this.mode !== "manual") return null;
+    const chunks = this.chunks;
     this.mode = "idle";
     this.chunks = [];
-    return blob;
+    return chunks.length ? encodeWav(chunks, this.context.sampleRate) : null;
   }
 
   startVoiceActivity(onUtterance) {
