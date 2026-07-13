@@ -1,12 +1,12 @@
-import { api, showToast } from "../api.js";
+import { api, showToast, setLoading } from "../api.js";
 
 export function renderSource(container, state, onBuilt) {
   container.innerHTML = `
     <h2 class="step-heading">Source</h2>
-    <p class="step-desc">Upload writing samples or chat exports. Supported: .txt, .jsonl, Discord/WhatsApp/Instagram exports.</p>
+    <p class="step-desc">Upload writing samples or chat exports. Supported: .txt, .jsonl, Discord, WhatsApp, and Instagram exports.</p>
 
-    <div class="drop-zone" id="drop-zone">
-      <div class="drop-zone-icon">↑</div>
+    <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Upload files">
+      <div class="drop-zone-icon" aria-hidden="true">↑</div>
       <p>Drop files here or click to browse</p>
       <p class="drop-zone-hint">.txt · .jsonl · .json (Discord, Instagram)</p>
     </div>
@@ -18,19 +18,19 @@ export function renderSource(container, state, onBuilt) {
     <div class="form-grid">
       <div class="form-row">
         <label for="persona-name">Persona name</label>
-        <input type="text" id="persona-name" placeholder="e.g. Alex" />
+        <input type="text" id="persona-name" placeholder="e.g. Alex" value="${escapeAttr(state.form.personaName)}" />
       </div>
       <div class="form-row">
         <label for="system-prompt">System prompt</label>
-        <textarea id="system-prompt" placeholder="You are Alex, a thoughtful writer who…"></textarea>
+        <textarea id="system-prompt" placeholder="You are Alex, a thoughtful writer who…">${escapeHtml(state.form.systemPrompt)}</textarea>
       </div>
       <div class="form-row" id="target-name-row" hidden>
         <label for="target-name">Target username / contact name</label>
-        <input type="text" id="target-name" placeholder="Exact name from the chat export" />
+        <input type="text" id="target-name" placeholder="Exact name from the chat export" value="${escapeAttr(state.form.targetName)}" />
       </div>
       <div class="checkbox-row">
-        <input type="checkbox" id="synthetic-qa" />
-        <label for="synthetic-qa">Generate synthetic Q&amp;A pairs (optional, uses GPU if available)</label>
+        <input type="checkbox" id="synthetic-qa" ${state.form.syntheticQa ? "checked" : ""} />
+        <label for="synthetic-qa">Generate synthetic Q&amp;A pairs (optional)</label>
       </div>
     </div>
 
@@ -48,16 +48,40 @@ export function renderSource(container, state, onBuilt) {
   const targetNameRow = container.querySelector("#target-name-row");
   const buildBtn = container.querySelector("#build-btn");
 
+  container.querySelector("#persona-name").addEventListener("input", (e) => {
+    state.form.personaName = e.target.value;
+  });
+  container.querySelector("#system-prompt").addEventListener("input", (e) => {
+    state.form.systemPrompt = e.target.value;
+  });
+  container.querySelector("#target-name").addEventListener("input", (e) => {
+    state.form.targetName = e.target.value;
+  });
+  container.querySelector("#synthetic-qa").addEventListener("change", (e) => {
+    state.form.syntheticQa = e.target.checked;
+  });
+
   function updateUploadUI() {
-    uploadList.innerHTML = state.uploads
-      .map(
-        (u) => `
-      <li class="upload-item">
-        <span>${u.filename}</span>
-        <span class="upload-format">${u.format_label || u.detected_format}</span>
-      </li>`
-      )
-      .join("");
+    if (!state.uploads.length) {
+      uploadList.innerHTML = '<li class="upload-empty">No files uploaded yet.</li>';
+    } else {
+      uploadList.innerHTML = state.uploads
+        .map(
+          (u, i) => `
+        <li class="upload-item">
+          <span class="upload-name">${escapeHtml(u.filename)}</span>
+          <span class="upload-format">${escapeHtml(u.format_label || u.detected_format)}</span>
+          <button type="button" class="btn-icon remove-upload" data-index="${i}" aria-label="Remove ${escapeAttr(u.filename)}">×</button>
+        </li>`
+        )
+        .join("");
+      uploadList.querySelectorAll(".remove-upload").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.uploads.splice(Number(btn.dataset.index), 1);
+          updateUploadUI();
+        });
+      });
+    }
 
     const needsTarget = state.uploads.some((u) => u.requires_target_name);
     targetNameRow.hidden = !needsTarget;
@@ -74,6 +98,7 @@ export function renderSource(container, state, onBuilt) {
   }
 
   async function handleFiles(files) {
+    dropZone.classList.add("uploading");
     for (const file of files) {
       try {
         const result = await api.uploadDataset(file);
@@ -83,10 +108,17 @@ export function renderSource(container, state, onBuilt) {
         showToast(`Upload failed: ${e.message}`, "error");
       }
     }
+    dropZone.classList.remove("uploading");
     updateUploadUI();
   }
 
   dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
     dropZone.classList.add("dragover");
@@ -108,6 +140,11 @@ export function renderSource(container, state, onBuilt) {
     const targetName = container.querySelector("#target-name").value.trim();
     const syntheticQa = container.querySelector("#synthetic-qa").checked;
 
+    state.form.personaName = personaName;
+    state.form.systemPrompt = systemPrompt;
+    state.form.targetName = targetName;
+    state.form.syntheticQa = syntheticQa;
+
     if (!personaName || !systemPrompt) {
       showToast("Persona name and system prompt are required.", "error");
       return;
@@ -119,8 +156,7 @@ export function renderSource(container, state, onBuilt) {
       return;
     }
 
-    buildBtn.disabled = true;
-    buildBtn.textContent = "Building…";
+    setLoading(buildBtn, true, "Building…");
 
     try {
       const result = await api.buildDataset({
@@ -139,8 +175,9 @@ export function renderSource(container, state, onBuilt) {
     } catch (e) {
       showToast(`Build failed: ${e.message}`, "error");
     } finally {
-      buildBtn.disabled = false;
+      setLoading(buildBtn, false);
       buildBtn.textContent = "Build dataset";
+      buildBtn.disabled = state.uploads.length === 0;
     }
   });
 
@@ -151,7 +188,7 @@ function renderPreview(section, result) {
   section.hidden = false;
   const warnings =
     result.warnings?.length > 0
-      ? `<ul class="warning-list">${result.warnings.map((w) => `<li>${w}</li>`).join("")}</ul>`
+      ? `<ul class="warning-list">${result.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`
       : "";
 
   const rows = result.examples
@@ -167,7 +204,7 @@ function renderPreview(section, result) {
     .join("");
 
   section.innerHTML = `
-    <h3 class="step-heading" style="font-size:1.1rem">Dataset preview</h3>
+    <h3 class="step-heading preview-heading">Dataset preview</h3>
     <div class="preview-stats">
       <span class="stat-badge">Total: <strong>${result.total_examples}</strong></span>
       <span class="stat-badge">Train: <strong>${result.train_examples}</strong></span>
@@ -181,5 +218,9 @@ function renderPreview(section, result) {
 }
 
 function escapeHtml(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;");
 }

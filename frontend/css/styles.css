@@ -42,6 +42,12 @@ html, body {
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 0.5rem 0;
+  background: color-mix(in srgb, var(--void) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .brand-title {
@@ -246,6 +252,10 @@ html, body {
 }
 
 .step-tab:hover { color: var(--parchment); }
+.step-tab:focus-visible {
+  outline: 2px solid var(--spectral);
+  outline-offset: 2px;
+}
 .step-tab.active {
   color: var(--spectral);
   background: color-mix(in srgb, var(--spectral) 10%, transparent);
@@ -304,6 +314,12 @@ input:focus, textarea:focus, select:focus {
   border-color: color-mix(in srgb, var(--spectral) 50%, transparent);
 }
 
+input:focus-visible, textarea:focus-visible, select:focus-visible,
+.drop-zone:focus-visible, .persona-item:focus-visible, .btn:focus-visible {
+  outline: 2px solid var(--spectral);
+  outline-offset: 2px;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -330,6 +346,11 @@ input:focus, textarea:focus, select:focus {
   background: color-mix(in srgb, var(--spectral) 5%, transparent);
 }
 
+.drop-zone.uploading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
 .drop-zone-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
 .drop-zone-hint { color: var(--mist); font-size: 0.85rem; }
 
@@ -343,12 +364,42 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: var(--void);
   border-radius: 6px;
   margin-bottom: 0.35rem;
   font-family: var(--font-mono);
   font-size: 0.8rem;
+}
+
+.upload-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.upload-empty { color: var(--mist); font-size: 0.85rem; list-style: none; padding: 0.25rem 0; }
+
+.btn-icon {
+  background: none;
+  border: 1px solid var(--veil-border);
+  color: var(--mist);
+  border-radius: 4px;
+  width: 1.6rem;
+  height: 1.6rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover { color: var(--danger); border-color: var(--danger); }
+.remove-upload { font-size: 1.1rem; }
+
+.empty-state {
+  background: color-mix(in srgb, var(--ember) 8%, var(--void));
+  border: 1px solid color-mix(in srgb, var(--ember) 25%, transparent);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  color: var(--mist);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
 }
 
 .upload-format {
@@ -383,6 +434,8 @@ input:focus, textarea:focus, select:focus {
 
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn:not(:disabled):hover { transform: translateY(-1px); }
+.btn.loading { opacity: 0.75; cursor: wait; }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
 
 .btn-primary {
   background: var(--spectral);
@@ -527,7 +580,31 @@ input:focus, textarea:focus, select:focus {
   width: 0%;
 }
 
+.progress-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--mist);
+  margin: 0.25rem 0 0.5rem;
+}
+
+.train-model-row { margin-bottom: 1rem; }
+
 /* Test step */
+.test-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+
+.chat-empty {
+  color: var(--mist);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 2rem 0;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
@@ -550,6 +627,26 @@ input:focus, textarea:focus, select:focus {
   border-radius: 10px;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
+  position: relative;
+}
+
+.chat-bubble-body { white-space: pre-wrap; word-break: break-word; }
+
+.chat-bubble-actions {
+  margin-top: 0.35rem;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.chat-bubble:hover .chat-bubble-actions,
+.chat-bubble:focus-within .chat-bubble-actions { opacity: 1; }
+
+.chat-bubble-actions .btn-icon {
+  width: auto;
+  height: auto;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
 }
 
 .chat-bubble.user {
@@ -635,11 +732,17 @@ input:focus, textarea:focus, select:focus {
 .toast.error { border-color: color-mix(in srgb, var(--danger) 50%, transparent); color: var(--danger); }
 .toast.success { border-color: color-mix(in srgb, var(--success) 50%, transparent); }
 
+.preview-heading { font-size: 1.1rem; }
+
 /* Responsive */
 @media (max-width: 800px) {
   .app-body { grid-template-columns: 1fr; }
+  .app-header { flex-direction: column; align-items: stretch; }
+  .gpu-badge { align-self: flex-start; white-space: normal; }
   .voice-bridge { grid-template-columns: 1fr; }
   .bridge-morph { width: 100%; height: 30px; padding: 0.5rem 0; }
   .morph-line { width: 100%; }
   .compare-grid { grid-template-columns: 1fr; }
+  .test-controls { grid-template-columns: 1fr; }
+  .hyper-grid { grid-template-columns: 1fr; }
 }

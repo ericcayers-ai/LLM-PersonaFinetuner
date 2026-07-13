@@ -2,10 +2,11 @@ import asyncio
 import json
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.trainer import job_manager
+from app.errors import api_error
 from app.models.schemas import (
     JobStatus,
     LossHistoryResponse,
@@ -23,9 +24,14 @@ router = APIRouter(prefix="/api/training", tags=["training"])
 def start_training(config: TrainingConfig) -> TrainingStartResponse:
     persona = store.get_persona(config.persona_id)
     if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found")
+        raise api_error(404, "persona_not_found", "Persona not found.")
     if not persona.get("dataset_id"):
-        raise HTTPException(status_code=400, detail="Persona has no dataset. Complete the Source step first.")
+        raise api_error(
+            400,
+            "no_dataset",
+            "This persona has no dataset yet.",
+            hint="Complete the Source step and build a dataset before training.",
+        )
 
     job = job_manager.create(
         persona_id=config.persona_id,
@@ -46,7 +52,12 @@ def start_training(config: TrainingConfig) -> TrainingStartResponse:
 async def stream_training(job_id: str) -> EventSourceResponse:
     job = job_manager.get(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Training job not found")
+        raise api_error(
+            404,
+            "job_not_found",
+            "Training job not found.",
+            hint="Training jobs are kept in memory. If the server restarted, start a new training run.",
+        )
 
     queue: asyncio.Queue[TrainingProgress | None] = asyncio.Queue()
     loop = asyncio.get_event_loop()
@@ -80,9 +91,14 @@ async def stream_training(job_id: str) -> EventSourceResponse:
 def cancel_training(job_id: str) -> dict:
     job = job_manager.get(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Training job not found")
+        raise api_error(
+            404,
+            "job_not_found",
+            "Training job not found.",
+            hint="Training jobs are kept in memory. If the server restarted, start a new training run.",
+        )
     if not job_manager.cancel(job_id):
-        raise HTTPException(status_code=400, detail="Job cannot be cancelled")
+        raise api_error(400, "cancel_failed", "This job cannot be cancelled.", hint="It may already be finished.")
     return {"job_id": job_id, "status": "cancelled"}
 
 
@@ -90,7 +106,12 @@ def cancel_training(job_id: str) -> dict:
 def training_status(job_id: str) -> TrainingProgress:
     job = job_manager.get(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Training job not found")
+        raise api_error(
+            404,
+            "job_not_found",
+            "Training job not found.",
+            hint="Training jobs are kept in memory. If the server restarted, start a new training run.",
+        )
     return job.progress
 
 
@@ -98,7 +119,12 @@ def training_status(job_id: str) -> TrainingProgress:
 def training_loss_history(job_id: str) -> LossHistoryResponse:
     job = job_manager.get(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Training job not found")
+        raise api_error(
+            404,
+            "job_not_found",
+            "Training job not found.",
+            hint="Training jobs are kept in memory. If the server restarted, start a new training run.",
+        )
     points = [
         LossPoint(step=p.step, epoch=p.epoch, loss=p.loss)
         for p in job.loss_history

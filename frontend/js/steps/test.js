@@ -1,26 +1,34 @@
-import { api, showToast } from "../api.js";
+import { api, showToast, setLoading } from "../api.js";
 
 export function renderTest(container, state) {
+  const hasPersona = Boolean(state.personaId);
   container.innerHTML = `
     <h2 class="step-heading">Test</h2>
     <p class="step-desc">Chat with your fine-tuned persona. Toggle comparison to see base model vs clone side-by-side.</p>
 
-    <div class="form-grid" style="grid-template-columns:1fr 1fr; margin-bottom:0.75rem">
+    ${hasPersona ? "" : '<div class="empty-state">Train a persona first, then select it from the sidebar to chat.</div>'}
+
+    <div class="test-controls">
       <div class="slider-row form-row">
-        <label>Temperature <span id="temp-val">0.7</span></label>
+        <label for="temperature">Temperature <span id="temp-val">0.7</span></label>
         <input type="range" id="temperature" min="0" max="10" value="7" />
       </div>
-      <div class="checkbox-row" style="align-self:end">
+      <div class="checkbox-row">
         <input type="checkbox" id="compare-base" />
         <label for="compare-base">Compare with base model</label>
+      </div>
+      <div class="btn-row chat-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="clear-chat" ${hasPersona ? "" : "disabled"}>Clear chat</button>
       </div>
     </div>
 
     <div class="chat-container">
-      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-messages" id="chat-messages">
+        ${hasPersona ? "" : '<p class="chat-empty">Messages will appear here.</p>'}
+      </div>
       <div class="chat-input-row">
-        <input type="text" id="chat-input" placeholder="Type a message…" ${state.personaId ? "" : "disabled"} />
-        <button type="button" class="btn btn-primary" id="send-btn" ${state.personaId ? "" : "disabled"}>Send</button>
+        <input type="text" id="chat-input" placeholder="Type a message…" ${hasPersona ? "" : "disabled"} />
+        <button type="button" class="btn btn-primary" id="send-btn" ${hasPersona ? "" : "disabled"}>Send</button>
       </div>
     </div>
   `;
@@ -33,16 +41,49 @@ export function renderTest(container, state) {
   const messagesEl = container.querySelector("#chat-messages");
   const inputEl = container.querySelector("#chat-input");
   const sendBtn = container.querySelector("#send-btn");
+  const clearBtn = container.querySelector("#clear-chat");
   const chatHistory = [];
 
+  function formatContent(text) {
+    return escapeHtml(text).replace(/\n/g, "<br>");
+  }
+
   function appendBubble(role, content, label = null) {
+    const empty = messagesEl.querySelector(".chat-empty");
+    if (empty) empty.remove();
+
     const div = document.createElement("div");
     div.className = `chat-bubble ${role}`;
+    const body = document.createElement("div");
+    body.className = "chat-bubble-body";
+    body.innerHTML = formatContent(content);
+
     if (label) {
-      div.innerHTML = `<div class="chat-bubble-label">${label}</div>${escapeHtml(content)}`;
-    } else {
-      div.textContent = content;
+      const lbl = document.createElement("div");
+      lbl.className = "chat-bubble-label";
+      lbl.textContent = label;
+      div.appendChild(lbl);
     }
+    div.appendChild(body);
+
+    const actions = document.createElement("div");
+    actions.className = "chat-bubble-actions";
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "btn-icon";
+    copyBtn.textContent = "Copy";
+    copyBtn.setAttribute("aria-label", "Copy message");
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(content);
+        showToast("Copied to clipboard", "success");
+      } catch (_) {
+        showToast("Could not copy", "error");
+      }
+    });
+    actions.appendChild(copyBtn);
+    div.appendChild(actions);
+
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -53,11 +94,11 @@ export function renderTest(container, state) {
     grid.innerHTML = `
       <div class="compare-col clone">
         <h4>Fine-tuned</h4>
-        <p>${escapeHtml(finetuned)}</p>
+        <p>${formatContent(finetuned)}</p>
       </div>
       <div class="compare-col base">
         <h4>Base model</h4>
-        <p>${escapeHtml(base)}</p>
+        <p>${formatContent(base)}</p>
       </div>
     `;
     messagesEl.appendChild(grid);
@@ -69,7 +110,7 @@ export function renderTest(container, state) {
     if (!text || !state.personaId) return;
 
     inputEl.value = "";
-    sendBtn.disabled = true;
+    setLoading(sendBtn, true, "…");
     appendBubble("user", text);
     chatHistory.push({ role: "user", content: text });
 
@@ -96,7 +137,8 @@ export function renderTest(container, state) {
       showToast(e.message, "error");
       appendBubble("assistant", `Error: ${e.message}`);
     } finally {
-      sendBtn.disabled = false;
+      setLoading(sendBtn, false);
+      sendBtn.textContent = "Send";
       inputEl.focus();
     }
   }
@@ -105,8 +147,13 @@ export function renderTest(container, state) {
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter") send();
   });
+
+  clearBtn.addEventListener("click", () => {
+    chatHistory.length = 0;
+    messagesEl.innerHTML = '<p class="chat-empty">Chat cleared.</p>';
+  });
 }
 
 function escapeHtml(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

@@ -46,12 +46,12 @@
       </aside>
 
       <main class="main-canvas">
-        <nav class="step-nav" aria-label="Workflow steps">
-          <button type="button" class="step-tab active" data-step="source">Source</button>
+        <nav class="step-nav" aria-label="Workflow steps" role="tablist">
+          <button type="button" class="step-tab active" data-step="source" role="tab" aria-selected="true">Source</button>
           <span class="step-arrow" aria-hidden="true">→</span>
-          <button type="button" class="step-tab" data-step="train">Train</button>
+          <button type="button" class="step-tab" data-step="train" role="tab" aria-selected="false">Train</button>
           <span class="step-arrow" aria-hidden="true">→</span>
-          <button type="button" class="step-tab" data-step="test">Test</button>
+          <button type="button" class="step-tab" data-step="test" role="tab" aria-selected="false">Test</button>
         </nav>
 
         <div id="step-source" class="step-panel active"></div>

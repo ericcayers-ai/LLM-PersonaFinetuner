@@ -9,32 +9,45 @@ const state = {
   jobId: null,
   uploads: [],
   personas: [],
+  form: {
+    personaName: "",
+    systemPrompt: "",
+    targetName: "",
+    syntheticQa: false,
+  },
 };
 
+const stepMounted = { source: false, train: false, test: false };
 let currentStep = "source";
+let gpuInterval = null;
 
 async function init() {
   await loadGpu();
   await loadPersonas();
   setupStepNav();
-  renderCurrentStep();
+  mountStep("source");
+  gpuInterval = setInterval(loadGpu, 30000);
 }
 
 async function loadGpu() {
   const badge = document.getElementById("gpu-badge");
+  if (!badge) return;
   try {
     const info = await api.getGpu();
     const text = badge.querySelector(".gpu-text");
     if (info.cuda_available) {
       badge.className = "gpu-badge ok";
       text.textContent = `GPU: ${info.device_name} · ${info.vram_free_gb}/${info.vram_total_gb} GB`;
+      badge.title = info.warning || "CUDA available";
     } else {
       badge.className = "gpu-badge " + (info.warning ? "warn" : "error");
       text.textContent = info.warning || "No GPU detected";
+      badge.title = "Training requires an NVIDIA GPU with CUDA";
     }
   } catch (_) {
     badge.className = "gpu-badge error";
     badge.querySelector(".gpu-text").textContent = "GPU check failed";
+    badge.title = "Could not reach the server";
   }
 }
 
@@ -50,13 +63,13 @@ async function loadPersonas() {
 function renderPersonaList() {
   const list = document.getElementById("persona-list");
   if (!state.personas.length) {
-    list.innerHTML = '<li class="persona-empty">No personas yet</li>';
+    list.innerHTML = '<li class="persona-empty">No personas yet — upload samples in Source to begin.</li>';
     return;
   }
   list.innerHTML = state.personas
     .map(
       (p) => `
-    <li class="persona-item ${p.id === state.personaId ? "active" : ""}" data-id="${p.id}">
+    <li class="persona-item ${p.id === state.personaId ? "active" : ""}" data-id="${p.id}" tabindex="0" role="button">
       <div class="persona-item-name">${escapeHtml(p.name)}</div>
       <div class="persona-item-status">${p.status}</div>
     </li>`
@@ -64,51 +77,66 @@ function renderPersonaList() {
     .join("");
 
   list.querySelectorAll(".persona-item").forEach((el) => {
-    el.addEventListener("click", () => {
+    const select = () => {
       state.personaId = el.dataset.id;
       const persona = state.personas.find((p) => p.id === state.personaId);
       if (persona?.dataset_id) state.datasetId = persona.dataset_id;
       renderPersonaList();
-      renderCurrentStep();
       if (persona?.status === "trained") enableExport(state);
+    };
+    el.addEventListener("click", select);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        select();
+      }
     });
   });
 }
 
 function setupStepNav() {
   document.querySelectorAll(".step-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      currentStep = tab.dataset.step;
-      document.querySelectorAll(".step-tab").forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      document.querySelectorAll(".step-panel").forEach((p) => p.classList.remove("active"));
-      document.getElementById(`step-${currentStep}`).classList.add("active");
-      renderCurrentStep();
+    tab.addEventListener("click", () => goToStep(tab.dataset.step));
+    tab.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        goToStep(tab.dataset.step);
+      }
     });
   });
 }
 
-function renderCurrentStep() {
-  const panels = {
-    source: document.getElementById("step-source"),
-    train: document.getElementById("step-train"),
-    test: document.getElementById("step-test"),
-  };
+function goToStep(step) {
+  currentStep = step;
+  document.querySelectorAll(".step-tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.step === step);
+    t.setAttribute("aria-selected", t.dataset.step === step ? "true" : "false");
+  });
+  document.querySelectorAll(".step-panel").forEach((p) => {
+    p.classList.toggle("active", p.id === `step-${step}`);
+  });
+  mountStep(step);
+}
 
-  if (currentStep === "source") {
-    renderSource(panels.source, state, async (result) => {
+function mountStep(step) {
+  const panel = document.getElementById(`step-${step}`);
+  if (stepMounted[step]) return;
+
+  if (step === "source") {
+    renderSource(panel, state, async (result) => {
       state.personaId = result.persona_id;
       state.datasetId = result.dataset_id;
       await loadPersonas();
     });
-  } else if (currentStep === "train") {
-    renderTrain(panels.train, state, async () => {
+  } else if (step === "train") {
+    renderTrain(panel, state, async () => {
       await loadPersonas();
       enableExport(state);
     });
-  } else if (currentStep === "test") {
-    renderTest(panels.test, state);
+  } else if (step === "test") {
+    renderTest(panel, state);
   }
+  stepMounted[step] = true;
 }
 
 function escapeHtml(s) {

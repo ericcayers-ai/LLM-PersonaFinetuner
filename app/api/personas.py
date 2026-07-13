@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app.core.gguf_export import export_for_ollama
+from app.errors import api_error
 from app.models.schemas import ExportResponse, PersonaCreate, PersonaResponse, PersonaStatus
 from app.storage import store
 
@@ -24,9 +25,9 @@ def _to_response(record: dict) -> PersonaResponse:
 @router.post("", response_model=PersonaResponse)
 def create_persona(req: PersonaCreate) -> PersonaResponse:
     if not req.name.strip():
-        raise HTTPException(status_code=400, detail="Persona name is required")
+        raise api_error(400, "missing_persona", "Persona name is required.")
     if not req.system_prompt.strip():
-        raise HTTPException(status_code=400, detail="System prompt is required")
+        raise api_error(400, "missing_prompt", "System prompt is required.")
 
     record = store.create_persona(
         name=req.name.strip(),
@@ -46,7 +47,7 @@ def list_personas() -> list[PersonaResponse]:
 def get_persona(persona_id: str) -> PersonaResponse:
     record = store.get_persona(persona_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Persona not found")
+        raise api_error(404, "persona_not_found", "Persona not found.")
     return _to_response(record)
 
 
@@ -55,9 +56,9 @@ def export_persona_gguf(persona_id: str) -> ExportResponse:
     try:
         result = export_for_ollama(persona_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise api_error(400, "export_error", str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Export failed: {e}") from e
+        raise api_error(500, "export_failed", f"Export failed: {e}") from e
 
     return ExportResponse(
         persona_id=result["persona_id"],

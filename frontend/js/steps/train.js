@@ -1,4 +1,4 @@
-import { api, showToast } from "../api.js";
+import { api, showToast, setLoading } from "../api.js";
 
 let lossChart = null;
 let lossPoints = [];
@@ -8,7 +8,9 @@ export function renderTrain(container, state, onTrained) {
     <h2 class="step-heading">Train</h2>
     <p class="step-desc">Fine-tune a LoRA adapter on your dataset. Requires an NVIDIA GPU.</p>
 
-    <div class="form-row" style="margin-bottom:1rem">
+    ${state.personaId ? "" : '<div class="empty-state">Build a dataset in Source before training.</div>'}
+
+    <div class="form-row train-model-row">
       <label for="base-model">Base model</label>
       <select id="base-model">
         <option value="unsloth/Llama-3.2-3B-Instruct-bnb-4bit">Llama 3.2 3B (recommended)</option>
@@ -19,26 +21,27 @@ export function renderTrain(container, state, onTrained) {
 
     <div class="hyper-grid">
       <div class="slider-row form-row">
-        <label>Epochs <span id="epochs-val">3</span></label>
+        <label for="epochs">Epochs <span id="epochs-val">3</span></label>
         <input type="range" id="epochs" min="1" max="10" value="3" />
       </div>
       <div class="slider-row form-row">
-        <label>Learning rate <span id="lr-val">2e-4</span></label>
+        <label for="lr">Learning rate <span id="lr-val">2e-4</span></label>
         <input type="range" id="lr" min="1" max="5" value="2" />
       </div>
       <div class="slider-row form-row">
-        <label>Batch size <span id="batch-val">2</span></label>
+        <label for="batch">Batch size <span id="batch-val">2</span></label>
         <input type="range" id="batch" min="1" max="8" value="2" />
       </div>
       <div class="slider-row form-row">
-        <label>LoRA rank <span id="lora-val">16</span></label>
+        <label for="lora-r">LoRA rank <span id="lora-val">16</span></label>
         <input type="range" id="lora-r" min="4" max="64" step="4" value="16" />
       </div>
     </div>
 
-    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-    <div class="loss-chart"><canvas id="loss-canvas" width="600" height="160"></canvas></div>
-    <div class="log-panel" id="log-panel"><div class="log-line">Ready to train.</div></div>
+    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" id="progress-fill"></div></div>
+    <p class="progress-label" id="progress-label">Ready to train.</p>
+    <div class="loss-chart"><canvas id="loss-canvas" width="600" height="160" aria-label="Training loss chart"></canvas></div>
+    <div class="log-panel" id="log-panel" tabindex="0"><div class="log-line">Ready to train.</div></div>
 
     <div class="btn-row">
       <button type="button" class="btn btn-primary" id="start-btn" ${state.personaId ? "" : "disabled"}>Start training</button>
@@ -68,12 +71,17 @@ export function renderTrain(container, state, onTrained) {
 
   const logPanel = container.querySelector("#log-panel");
   const progressFill = container.querySelector("#progress-fill");
+  const progressLabel = container.querySelector("#progress-label");
   const startBtn = container.querySelector("#start-btn");
   const cancelBtn = container.querySelector("#cancel-btn");
   const exportBtn = container.querySelector("#export-btn");
   const canvas = container.querySelector("#loss-canvas");
   lossChart = canvas.getContext("2d");
   lossPoints = [];
+
+  if (state.personas?.find((p) => p.id === state.personaId)?.status === "trained") {
+    exportBtn.disabled = false;
+  }
 
   function addLog(msg, cls = "") {
     const line = document.createElement("div");
@@ -112,13 +120,19 @@ export function renderTrain(container, state, onTrained) {
     if (progress.total_steps > 0) {
       const pct = (progress.step / progress.total_steps) * 100;
       progressFill.style.width = `${Math.min(pct, 100)}%`;
+      progressLabel.textContent = `Epoch ${progress.epoch}/${progress.total_epochs || "?"} · Step ${progress.step}/${progress.total_steps}`;
+    }
+    if (progress.eta_seconds != null && progress.eta_seconds > 0) {
+      const mins = Math.ceil(progress.eta_seconds / 60);
+      progressLabel.textContent += ` · ~${mins} min left`;
     }
     if (progress.loss != null) {
       lossPoints.push({ step: progress.step, loss: progress.loss });
       drawLossChart();
-      addLog(`Step ${progress.step} — loss ${progress.loss}`, "loss");
+      addLog(`Step ${progress.step} — loss ${progress.loss.toFixed(4)}`, "loss");
     } else if (progress.message) {
       addLog(progress.message);
+      progressLabel.textContent = progress.message;
     }
   }
 
@@ -133,6 +147,7 @@ export function renderTrain(container, state, onTrained) {
     lossPoints = [];
     logPanel.innerHTML = "";
     addLog("Starting training…");
+    progressFill.style.width = "0%";
     document.getElementById("voice-bridge")?.classList.add("training");
 
     try {
@@ -164,6 +179,7 @@ export function renderTrain(container, state, onTrained) {
 
   cancelBtn.addEventListener("click", async () => {
     if (!state.jobId) return;
+    if (!window.confirm("Cancel training? Progress for this run will be lost.")) return;
     try {
       await api.cancelTraining(state.jobId);
       addLog("Cancellation requested…");
@@ -174,6 +190,7 @@ export function renderTrain(container, state, onTrained) {
 
   exportBtn.addEventListener("click", async () => {
     if (!state.personaId) return;
+    setLoading(exportBtn, true, "Exporting…");
     try {
       const result = await api.exportGguf(state.personaId);
       showToast(result.message, "success");
@@ -183,6 +200,9 @@ export function renderTrain(container, state, onTrained) {
       }
     } catch (e) {
       showToast(e.message, "error");
+    } finally {
+      setLoading(exportBtn, false);
+      exportBtn.textContent = "Export for Ollama";
     }
   });
 
@@ -193,14 +213,17 @@ export function renderTrain(container, state, onTrained) {
 
     if (progress.status === "completed") {
       addLog("Training complete!", "loss");
+      progressLabel.textContent = "Training complete";
       exportBtn.disabled = false;
       showToast("Training complete!", "success");
       if (onTrained) onTrained();
     } else if (progress.status === "failed") {
       addLog(progress.error || "Training failed", "error");
-      showToast("Training failed", "error");
+      progressLabel.textContent = "Training failed";
+      showToast(progress.error || "Training failed", "error");
     } else {
       addLog("Training cancelled.");
+      progressLabel.textContent = "Training cancelled";
     }
   }
 }

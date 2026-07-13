@@ -1,12 +1,23 @@
 const API_BASE = "";
 
+function parseErrorBody(body) {
+  if (typeof body === "string") return body;
+  if (body.message) {
+    return body.hint ? `${body.message} ${body.hint}` : body.message;
+  }
+  if (body.detail) {
+    return typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+  }
+  return JSON.stringify(body);
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
     let detail = res.statusText;
     try {
       const body = await res.json();
-      detail = body.detail || JSON.stringify(body);
+      detail = parseErrorBody(body);
     } catch (_) {}
     throw new Error(detail);
   }
@@ -58,5 +69,19 @@ export function showToast(message, type = "info") {
   clearTimeout(el._timer);
   el._timer = setTimeout(() => {
     el.classList.remove("show");
-  }, 4000);
+  }, 4500);
+}
+
+export function setLoading(btn, loading, label = "Loading…") {
+  if (!btn) return;
+  if (loading) {
+    btn.dataset.prevText = btn.textContent;
+    btn.disabled = true;
+    btn.classList.add("loading");
+    btn.textContent = label;
+  } else {
+    btn.disabled = false;
+    btn.classList.remove("loading");
+    btn.textContent = btn.dataset.prevText || btn.textContent;
+  }
 }

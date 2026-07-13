@@ -2,23 +2,34 @@
 
 A local-first web app for fine-tuning small open-weight LLMs with LoRA/QLoRA to capture a person's writing voice. Upload samples, train on your NVIDIA GPU, and chat with the result.
 
-## Features
+## Quick start (Windows)
 
-- **Source → Train → Test** wizard with a voice-transfer UI
+1. **Setup** (first time only): double-click `setup.bat` or run `.\setup.ps1`
+2. **Run**: double-click `run.bat` or run `.\run.ps1`
+3. Your browser opens to **http://localhost:8000**
+
+Linux/macOS: `make setup && make run`
+
+## Features (v1.1)
+
+- **Source → Train → Test** wizard with voice-transfer UI
 - Upload plain text, JSONL, or chat exports (Discord, WhatsApp, Instagram)
 - Auto-detect export format with target username/contact filtering
 - Optional synthetic Q&A generation before training
 - LoRA/QLoRA training via Unsloth with SSE progress and loss chart
 - Side-by-side base vs fine-tuned comparison in Test step
 - Export adapter for Ollama (with GGUF conversion when tooling is available)
+- One-click Windows launchers (`run.bat`, `setup.bat`)
 
 ## Requirements
 
-- Python 3.10+
-- NVIDIA GPU with CUDA (6+ GB VRAM for 3B models, 10+ GB for 7B)
-- Windows or Linux
+| Requirement | Details |
+|-------------|---------|
+| Python | 3.10+ |
+| GPU | NVIDIA with CUDA (6+ GB VRAM for 3B, 10+ GB for 7B) |
+| OS | Windows (primary), Linux |
 
-## Install
+## Manual install
 
 ```bash
 python -m venv .venv
@@ -27,17 +38,8 @@ python -m venv .venv
 
 pip install torch --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-```
-
-If Unsloth fails on Windows, see [Unsloth docs](https://github.com/unslothai/unsloth) for CUDA-specific install notes.
-
-## Run
-
-```bash
 uvicorn app.main:app --reload
 ```
-
-Open http://localhost:8000
 
 ## Supported upload formats
 
@@ -47,33 +49,16 @@ Open http://localhost:8000
 | User/Assistant | `.txt` | `User: …` / `Assistant: …` blocks |
 | JSONL | `.jsonl` | `{"messages": [...]}` per line |
 | Discord | `.json` | Array of messages with `author`, `content`, `timestamp` |
-| WhatsApp | `.txt` | `[DD/MM/YYYY, HH:MM:SS] Name: message` or `[M/D/YY, H:MM AM/PM]` |
+| WhatsApp | `.txt` | `[DD/MM/YYYY, HH:MM:SS] Name: message` |
 | Instagram | `.json` | `message_*.json` from data download |
 
 For chat exports, set the **target username/contact name** so that person's messages become the assistant in training pairs.
-
-### Format examples
-
-**Discord** (`discord_export.json`):
-```json
-[{"author": {"name": "alice"}, "content": "Hello!", "timestamp": "..."}]
-```
-
-**WhatsApp**:
-```
-[15/01/2024, 10:00:00] Bob: Hey there
-[15/01/2024, 10:01:00] Alice: Hi! How are you?
-```
-
-**Instagram** (`message_1.json`):
-```json
-{"participants": [{"name": "alice"}], "messages": [{"sender_name": "alice", "content": "Hi"}]}
-```
 
 ## API endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/health` | App health, version, GPU summary |
 | GET | `/api/system/gpu` | GPU info |
 | POST | `/api/datasets/upload` | Upload file (returns detected format) |
 | POST | `/api/datasets/build` | Build SFT dataset |
@@ -83,11 +68,27 @@ For chat exports, set the **target username/contact name** so that person's mess
 | POST | `/api/inference/chat` | Chat (optional `compare_base`) |
 | POST | `/api/personas/{id}/export-gguf` | Export for Ollama |
 
+API errors return a consistent JSON shape: `{ error, message, detail, hint }`.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| No GPU detected | Install NVIDIA drivers + CUDA PyTorch (`setup.bat` handles this) |
+| Unsloth fails on Windows | See [Unsloth docs](https://github.com/unslothai/unsloth) |
+| Training job lost after restart | Jobs are in-memory; restart training after server reboot |
+| Upload rejected | Max 50 MB per file; check format and non-empty content |
+| Chat export empty | Verify target username matches export exactly |
+
+## Screenshots
+
+<!-- Add screenshots of Source, Train, and Test steps here -->
+
 ## Ollama export limitations
 
 - Ollama requires GGUF; LoRA adapters must be merged with the base model first
 - 4-bit quantized bases may need full-precision merge before conversion
-- Auto GGUF export works when Unsloth GGUF tooling is available; otherwise manual steps are provided in the export manifest
+- Auto GGUF export works when Unsloth GGUF tooling is available
 
 ## Testing
 
@@ -101,7 +102,9 @@ pytest tests/ -v
 ```
 app/           FastAPI backend
 frontend/      Vanilla JS UI
-tests/         Parser unit tests
+tests/         Parser + API tests
+run.bat        One-click Windows launcher
+setup.bat      First-time setup
 data/          Runtime uploads (gitignored)
 outputs/       Trained adapters (gitignored)
 ```
