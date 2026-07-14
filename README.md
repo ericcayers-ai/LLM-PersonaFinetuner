@@ -1,6 +1,10 @@
 # PersonaFinetuner
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A local-first web app for fine-tuning small open-weight LLMs with LoRA/QLoRA to capture a person's writing voice. Upload samples, train on your NVIDIA GPU, and chat with the result.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a dev environment and open a PR. Licensed under the [MIT License](LICENSE).
 
 ## Quick start (Windows)
 

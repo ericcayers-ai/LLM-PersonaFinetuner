@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an enhancement for PersonaFinetuner
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share the problem you want to solve and any ideas for a solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve? Who benefits?
+      placeholder: I'm always frustrated when…
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How you imagine this working in the app or API.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, or existing workarounds.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, related issues, format examples, etc.
+    validations:
+      required: false
