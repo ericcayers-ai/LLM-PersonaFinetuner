@@ -2,6 +2,9 @@
 
 A local-first web app for fine-tuning small open-weight LLMs with LoRA/QLoRA to capture a person's writing style, cloning a consented speaking voice, and holding live browser voice calls with the result.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
 ## Quick start (Windows)
 
 1. **Setup** (first time only): double-click `setup.bat` or run `.\setup.ps1`
@@ -12,7 +15,7 @@ Linux/macOS: `make setup && make run`
 
 ## Features (v1.2)
 
-- **Source → Train → Test** wizard with voice-transfer UI
+- **Source → Train → Test → Voice → Call** wizard with voice-transfer UI
 - Upload plain text, JSONL, or chat exports (Discord, WhatsApp, Instagram)
 - Auto-detect export format with target username/contact filtering
 - Optional synthetic Q&A generation before training
@@ -128,7 +131,7 @@ API errors return a consistent JSON shape: `{ error, message, detail, hint }`.
 
 ## Screenshots
 
-<!-- Add screenshots of Source, Train, and Test steps here -->
+<!-- Add screenshots of Source, Train, Test, Voice, and Call steps here -->
 
 ## Ollama export limitations
 
@@ -154,3 +157,16 @@ setup.bat      First-time setup
 data/          Runtime uploads (gitignored)
 outputs/       Trained adapters (gitignored)
 ```
+
+## Contributing
+
+Contributions are welcome. Please read:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) for setup, coding standards, and PR process
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations
+- Issue templates under `.github/ISSUE_TEMPLATE/` for bug reports and feature requests
+- [Pull request template](.github/PULL_REQUEST_TEMPLATE.md) when opening a PR
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). Copyright (c) 2026 Eric Ayers.

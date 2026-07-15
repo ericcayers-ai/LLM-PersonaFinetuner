@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Code of Conduct
+    url: https://github.com/ericcayers-ai/LLM-PersonaFinetuner/blob/main/CODE_OF_CONDUCT.md
+    about: Standards for participating in this community
+  - name: Contribution guidelines
+    url: https://github.com/ericcayers-ai/LLM-PersonaFinetuner/blob/main/CONTRIBUTING.md
+    about: How to set up the project and open a pull request
