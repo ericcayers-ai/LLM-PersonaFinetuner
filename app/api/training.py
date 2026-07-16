@@ -33,6 +33,10 @@ def start_training(config: TrainingConfig) -> TrainingStartResponse:
             hint="Complete the Source step and build a dataset before training.",
         )
 
+    base_model = config.base_model or persona.get("base_model") or None
+    if base_model:
+        store.update_persona(config.persona_id, base_model=base_model)
+
     job = job_manager.create(
         persona_id=config.persona_id,
         config=config.model_dump(),

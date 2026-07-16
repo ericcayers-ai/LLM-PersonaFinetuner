@@ -18,6 +18,12 @@ build/
 data/
 outputs/
 
+# Secrets / local env extras
+.env.*
+!.env.example
+*.pem
+secrets/
+
 # IDE
 .vscode/
 .idea/

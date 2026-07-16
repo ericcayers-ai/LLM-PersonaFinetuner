@@ -242,5 +242,7 @@ function subscribeSSE(jobId, onProgress) {
 
 export function enableExport(state) {
   const btn = document.querySelector("#export-btn");
-  if (btn) btn.disabled = !state.personaId;
+  if (!btn) return;
+  const persona = state.personas?.find((p) => p.id === state.personaId);
+  btn.disabled = !(state.personaId && persona?.status === "trained");
 }

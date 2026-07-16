@@ -14,7 +14,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a dev environment and o
 
 Linux/macOS: `make setup && make run`
 
-## Features (v1.1)
+## Features (v1.1.0)
 
 - **Source → Train → Test** wizard with voice-transfer UI
 - Upload plain text, JSONL, or chat exports (Discord, WhatsApp, Instagram)

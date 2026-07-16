@@ -1,9 +1,5 @@
 """API smoke tests using FastAPI TestClient."""
 
-import io
-import json
-
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -124,6 +120,34 @@ class TestTrainingAPI:
         res = client.get("/api/training/bad-id/status")
         assert res.status_code == 404
         assert res.json()["error"] == "job_not_found"
+
+    def test_start_persists_base_model(self, monkeypatch):
+        content = (FIXTURES / "discord_export.json").read_bytes()
+        upload = client.post(
+            "/api/datasets/upload",
+            files={"file": ("discord_export.json", content, "application/json")},
+        ).json()
+        built = client.post(
+            "/api/datasets/build",
+            json={
+                "upload_ids": [upload["upload_id"]],
+                "persona_name": "Base Model Persist",
+                "system_prompt": "You are target_user.",
+                "target_name": "target_user",
+            },
+        ).json()
+
+        monkeypatch.setattr("app.api.training.job_manager.start", lambda _job: None)
+
+        chosen = "unsloth/Mistral-7B-Instruct-v0.3-bnb-4bit"
+        res = client.post(
+            "/api/training/start",
+            json={"persona_id": built["persona_id"], "base_model": chosen},
+        )
+        assert res.status_code == 200
+
+        persona = client.get(f"/api/personas/{built['persona_id']}").json()
+        assert persona["base_model"] == chosen
 
 
 class TestInferenceAPI:

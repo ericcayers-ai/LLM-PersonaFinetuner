@@ -162,6 +162,7 @@ class JobManager:
 
         train_path = dataset_meta["train_path"]
         base_model = cfg.get("base_model") or persona.get("base_model") or settings.default_base_model
+        store.update_persona(job.persona_id, base_model=base_model)
         max_seq_length = cfg.get("max_seq_length", settings.default_max_seq_length)
         epochs = cfg.get("epochs", settings.default_epochs)
         learning_rate = cfg.get("learning_rate", settings.default_learning_rate)

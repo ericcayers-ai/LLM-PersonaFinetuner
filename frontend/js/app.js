@@ -18,6 +18,7 @@ const state = {
 };
 
 const stepMounted = { source: false, train: false, test: false };
+const stepPersonaId = { train: null, test: null };
 let currentStep = "source";
 let gpuInterval = null;
 
@@ -82,7 +83,11 @@ function renderPersonaList() {
       const persona = state.personas.find((p) => p.id === state.personaId);
       if (persona?.dataset_id) state.datasetId = persona.dataset_id;
       renderPersonaList();
-      if (persona?.status === "trained") enableExport(state);
+      enableExport(state);
+      // Refresh Train/Test if already open so controls match the selection
+      if (currentStep === "train" || currentStep === "test") {
+        remountStepIfNeeded(currentStep, true);
+      }
     };
     el.addEventListener("click", select);
     el.addEventListener("keydown", (e) => {
@@ -118,17 +123,44 @@ function goToStep(step) {
   mountStep(step);
 }
 
+function isTrainingActive() {
+  const cancelBtn = document.querySelector("#step-train #cancel-btn");
+  return Boolean(cancelBtn && !cancelBtn.disabled);
+}
+
+function remountStepIfNeeded(step, force = false) {
+  if (step === "source") return;
+  if (step === "train" && isTrainingActive()) return;
+  if (!force && stepMounted[step] && stepPersonaId[step] === state.personaId) return;
+  stepMounted[step] = false;
+  mountStep(step);
+}
+
 function mountStep(step) {
   const panel = document.getElementById(`step-${step}`);
-  if (stepMounted[step]) return;
+  if (!panel) return;
 
   if (step === "source") {
+    if (stepMounted.source) return;
     renderSource(panel, state, async (result) => {
       state.personaId = result.persona_id;
       state.datasetId = result.dataset_id;
       await loadPersonas();
+      // Dataset ready — refresh Train/Test if they were opened too early
+      remountStepIfNeeded("train", true);
+      remountStepIfNeeded("test", true);
     });
-  } else if (step === "train") {
+    stepMounted.source = true;
+    return;
+  }
+
+  // Remount Train/Test when persona changes so Start/chat stay enabled
+  if (stepMounted[step] && stepPersonaId[step] === state.personaId) return;
+  if (step === "train" && isTrainingActive()) return;
+
+  panel.innerHTML = "";
+
+  if (step === "train") {
     renderTrain(panel, state, async () => {
       await loadPersonas();
       enableExport(state);
@@ -136,7 +168,9 @@ function mountStep(step) {
   } else if (step === "test") {
     renderTest(panel, state);
   }
+
   stepMounted[step] = true;
+  stepPersonaId[step] = state.personaId;
 }
 
 function escapeHtml(s) {
