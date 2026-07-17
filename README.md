@@ -1,31 +1,134 @@
 # PersonaFinetuner
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.2.1-62d9e0?style=flat-square)](https://github.com/ericcayers-ai/LLM-PersonaFinetuner/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-pytest-5ecf8a?style=flat-square)](tests/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-8a90a5?style=flat-square)](#requirements)
 
-A local-first web app for fine-tuning small open-weight LLMs with LoRA/QLoRA to capture a person's writing voice. Upload samples, train on your NVIDIA GPU, and chat with the result.
+**Clone a writing voice locally.** Upload samples or chat exports, fine-tune a small open-weight LLM with LoRA/QLoRA on your NVIDIA GPU, then chat with the result — side-by-side against the base model.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a dev environment and open a PR. Licensed under the [MIT License](LICENSE).
+<p align="center">
+  <img src="docs/images/overview.png" alt="PersonaFinetuner overview — Source step with voice preview bridge" width="900" />
+</p>
 
-## Quick start (Windows)
+```text
+setup.bat   →   run.bat   →   http://localhost:8000
+```
 
-1. **Setup** (first time only): double-click `setup.bat` or run `.\setup.ps1`
-2. **Run**: double-click `run.bat` or run `.\run.ps1`
-3. Your browser opens to **http://localhost:8000**
+---
 
-Linux/macOS: `make setup && make run`
+## Quick start
 
-## Features (v1.2.0)
+| OS | First time | Every launch |
+|----|------------|--------------|
+| **Windows** | Double-click `setup.bat` (or `.\setup.ps1`) | Double-click `run.bat` (or `.\run.ps1`) |
+| **Linux / macOS** | `make setup` | `make run` |
 
-- **Source → Train → Test** wizard with clearer step navigation and soft gating
-- Progressive disclosure for advanced training settings; quieter product chrome
-- Actionable empty states, continue CTAs, and collapsible voice preview
-- Upload plain text, JSONL, or chat exports (Discord, WhatsApp, Instagram)
-- Auto-detect export format with target username/contact filtering
-- Optional synthetic Q&A generation before training
-- LoRA/QLoRA training via Unsloth with SSE progress and loss chart
-- Side-by-side base vs fine-tuned comparison in Test step
-- Export adapter for Ollama (with GGUF conversion when tooling is available)
-- One-click Windows launchers (`run.bat`, `setup.bat`)
+Browser opens to **http://localhost:8000**.
+
+> GPU tip: `setup.bat` installs CUDA PyTorch. Training needs an NVIDIA GPU (≈6+ GB VRAM for 3B, ≈10+ GB for 7B).
+
+---
+
+## How it works
+
+<p align="center">
+  <img src="docs/images/flow.svg" alt="Source → Train → Test workflow diagram" width="720" />
+</p>
+
+```mermaid
+flowchart LR
+  A[Source<br/>upload + build] --> B[Train<br/>LoRA / QLoRA]
+  B --> C[Test<br/>chat + compare]
+  C -.->|iterate| A
+```
+
+| Step | What you do | What you get |
+|------|-------------|--------------|
+| **Source** | Drop `.txt`, `.jsonl`, or Discord / WhatsApp / Instagram exports | SFT dataset + optional synthetic Q&A |
+| **Train** | Pick a base model; advanced knobs stay collapsed | LoRA adapter, live SSE progress, loss chart |
+| **Test** | Chat with the persona; toggle compare | Fine-tuned vs base answers side by side |
+
+---
+
+## Screenshots
+
+### 1 · Source — upload & build
+
+<p align="center">
+  <img src="docs/images/source.png" alt="Source step: file drop zone and persona details" width="880" />
+</p>
+
+### 2 · Train — LoRA with loss chart
+
+<p align="center">
+  <img src="docs/images/train.png" alt="Train step: model picker, progress bar, and loss chart" width="880" />
+</p>
+
+### 3 · Test — chat & compare
+
+<p align="center">
+  <img src="docs/images/test.png" alt="Test step: fine-tuned vs base model comparison chat" width="880" />
+</p>
+
+---
+
+## Features
+
+- **Source → Train → Test** wizard with soft gating and continue CTAs
+- Progressive disclosure for advanced training settings
+- Chat parsers: Discord, WhatsApp, Instagram (+ plain text / JSONL)
+- Auto-detect export format; target username/contact filtering
+- Optional synthetic Q&A before training
+- Unsloth LoRA/QLoRA with SSE progress and loss chart
+- Side-by-side base vs fine-tuned comparison
+- Export adapter for Ollama (GGUF when tooling is available)
+- One-click Windows launchers (`setup.bat`, `run.bat`)
+
+---
+
+## Examples
+
+### Chat export snippets
+
+**Discord** (JSON array — set *target username* to `alex`):
+
+```json
+[
+  {"author": {"username": "friend"}, "content": "how do you start writing?", "timestamp": "2024-03-01T18:02:11.000Z"},
+  {"author": {"username": "alex"}, "content": "coffee, yesterday's notes, then follow whatever thread still feels alive", "timestamp": "2024-03-01T18:02:44.000Z"}
+]
+```
+
+**WhatsApp** (`.txt` — set *target contact* to `Alex`):
+
+```text
+[01/03/2024, 18:02:11] Friend: how do you start writing?
+[01/03/2024, 18:02:44] Alex: coffee, yesterday's notes, then follow whatever thread still feels alive
+```
+
+### Starter persona prompt
+
+```text
+You are a thoughtful writer who speaks in a natural, specific voice.
+Match the tone, cadence, and vocabulary of the provided samples.
+```
+
+### API one-liners
+
+```bash
+# Health
+curl http://localhost:8000/api/health
+
+# Chat with a trained persona
+curl -X POST http://localhost:8000/api/inference/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"persona_id\":\"YOUR_ID\",\"messages\":[{\"role\":\"user\",\"content\":\"How do you usually start a writing session?\"}],\"compare_base\":true}"
+```
+
+Errors return: `{ "error", "message", "detail", "hint" }`.
+
+---
 
 ## Requirements
 
@@ -47,18 +150,22 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+---
+
 ## Supported upload formats
 
 | Format | Extension | Notes |
 |--------|-----------|-------|
 | Plain text | `.txt` | Essays, transcripts, writing samples |
-| User/Assistant | `.txt` | `User: …` / `Assistant: …` blocks |
+| User / Assistant | `.txt` | `User: …` / `Assistant: …` blocks |
 | JSONL | `.jsonl` | `{"messages": [...]}` per line |
 | Discord | `.json` | Array of messages with `author`, `content`, `timestamp` |
 | WhatsApp | `.txt` | `[DD/MM/YYYY, HH:MM:SS] Name: message` |
 | Instagram | `.json` | `message_*.json` from data download |
 
-For chat exports, set the **target username/contact name** so that person's messages become the assistant in training pairs.
+For chat exports, set the **target username / contact name** so that person's messages become the assistant turns.
+
+---
 
 ## API endpoints
 
@@ -74,7 +181,7 @@ For chat exports, set the **target username/contact name** so that person's mess
 | POST | `/api/inference/chat` | Chat (optional `compare_base`) |
 | POST | `/api/personas/{id}/export-gguf` | Export for Ollama |
 
-API errors return a consistent JSON shape: `{ error, message, detail, hint }`.
+---
 
 ## Troubleshooting
 
@@ -84,17 +191,18 @@ API errors return a consistent JSON shape: `{ error, message, detail, hint }`.
 | Unsloth fails on Windows | See [Unsloth docs](https://github.com/unslothai/unsloth) |
 | Training job lost after restart | Jobs are in-memory; restart training after server reboot |
 | Upload rejected | Max 50 MB per file; check format and non-empty content |
-| Chat export empty | Verify target username matches export exactly |
+| Chat export empty | Verify target username matches the export **exactly** |
 
-## Screenshots
+<details>
+<summary>Ollama export limitations</summary>
 
-<!-- Add screenshots of Source, Train, and Test steps here -->
-
-## Ollama export limitations
-
-- Ollama requires GGUF; LoRA adapters must be merged with the base model first
-- 4-bit quantized bases may need full-precision merge before conversion
+- Ollama needs GGUF; LoRA adapters must be merged with the base model first
+- 4-bit quantized bases may need a full-precision merge before conversion
 - Auto GGUF export works when Unsloth GGUF tooling is available
+
+</details>
+
+---
 
 ## Testing
 
@@ -109,8 +217,13 @@ pytest tests/ -v
 app/           FastAPI backend
 frontend/      Vanilla JS UI
 tests/         Parser + API tests
+docs/images/   README screenshots & diagrams
 run.bat        One-click Windows launcher
 setup.bat      First-time setup
 data/          Runtime uploads (gitignored)
 outputs/       Trained adapters (gitignored)
 ```
+
+---
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and PRs. Licensed under the [MIT License](LICENSE).

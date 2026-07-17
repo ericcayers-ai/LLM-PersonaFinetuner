@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="220" viewBox="0 0 960 220" role="img" aria-labelledby="title desc">
+  <title id="title">Source ’ Train ’ Test workflow</title>
+  <desc id="desc">Three-step flow: upload samples, fine-tune with LoRA, then chat and compare.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c0d12"/>
+      <stop offset="100%" stop-color="#181a24"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 1.5 L8 5 L0 8.5 Z" fill="#8a90a5"/>
+    </marker>
+  </defs>
+  <rect width="960" height="220" rx="16" fill="url(#bg)"/>
+  <rect x="1" y="1" width="958" height="218" rx="15" fill="none" stroke="#252836"/>
+
+  <!-- Source -->
+  <rect x="40" y="48" width="240" height="124" rx="12" fill="#181a24" stroke="#62d9e0" stroke-width="1.5"/>
+  <text x="160" y="82" text-anchor="middle" fill="#62d9e0" font-family="Georgia, serif" font-size="15" font-weight="600">1 · Source</text>
+  <text x="160" y="112" text-anchor="middle" fill="#e6dfd3" font-family="system-ui, sans-serif" font-size="14">Upload samples</text>
+  <text x="160" y="136" text-anchor="middle" fill="#8a90a5" font-family="system-ui, sans-serif" font-size="12">txt · Discord · WhatsApp</text>
+  <text x="160" y="154" text-anchor="middle" fill="#8a90a5" font-family="system-ui, sans-serif" font-size="12">Build SFT dataset</text>
+
+  <line x1="290" y1="110" x2="350" y2="110" stroke="#8a90a5" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Train -->
+  <rect x="360" y="48" width="240" height="124" rx="12" fill="#181a24" stroke="#d4763a" stroke-width="1.5"/>
+  <text x="480" y="82" text-anchor="middle" fill="#d4763a" font-family="Georgia, serif" font-size="15" font-weight="600">2 · Train</text>
+  <text x="480" y="112" text-anchor="middle" fill="#e6dfd3" font-family="system-ui, sans-serif" font-size="14">LoRA / QLoRA</text>
+  <text x="480" y="136" text-anchor="middle" fill="#8a90a5" font-family="system-ui, sans-serif" font-size="12">SSE progress · loss chart</text>
+  <text x="480" y="154" text-anchor="middle" fill="#8a90a5" font-family="system-ui, sans-serif" font-size="12">Export for Ollama</text>
+
+  <line x1="610" y1="110" x2="670" y2="110" stroke="#8a90a5" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Test -->
+  <rect x="680" y="48" width="240" height="124" rx="12" fill="#181a24" stroke="#5ecf8a" stroke-width="1.5"/>
+  <text x="800" y="82" text-anchor="middle" fill="#5ecf8a" font-family="Georgia, serif" font-size="15" font-weight="600">3 · Test</text>
+  <text x="800" y="112" text-anchor="middle" fill="#e6dfd3" font-family="system-ui, sans-serif" font-size="14">Chat with the voice</text>
+  <text x="800" y="136" text-anchor="middle" fill="#8a90a5" font-family="system-ui, sans-serif" font-size="12">Compare vs base model</text>
+  <text x="800" y="154" text-anchor="middle" fill="#8a90a5" font-family="system-ui, sans-serif" font-size="12">Iterate on prompt</text>
+</svg>

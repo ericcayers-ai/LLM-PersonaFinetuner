@@ -39,3 +39,8 @@ Thumbs.db
 unsloth_compiled_cache/
 .agents/
 skills-lock.json
+
+# Docs capture scratch (keep committed PNGs/SVGs only)
+docs/images/_chrome_profile/
+docs/images/_capture_screens.py
+docs/images/_demo_*.html

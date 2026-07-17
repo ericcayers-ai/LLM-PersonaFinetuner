@@ -159,7 +159,7 @@ class ExportResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     app_name: str
-    version: str = "1.2.0"
+    version: str = "1.2.1"
     available_models: list[str]
     cuda_available: bool = False
     gpu_name: Optional[str] = None
