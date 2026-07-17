@@ -14,9 +14,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a dev environment and o
 
 Linux/macOS: `make setup && make run`
 
-## Features (v1.1.0)
+## Features (v1.2.0)
 
-- **Source → Train → Test** wizard with voice-transfer UI
+- **Source → Train → Test** wizard with clearer step navigation and soft gating
+- Progressive disclosure for advanced training settings; quieter product chrome
+- Actionable empty states, continue CTAs, and collapsible voice preview
 - Upload plain text, JSONL, or chat exports (Discord, WhatsApp, Instagram)
 - Auto-detect export format with target username/contact filtering
 - Optional synthetic Q&A generation before training

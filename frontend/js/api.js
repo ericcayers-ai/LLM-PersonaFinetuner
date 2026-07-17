@@ -67,9 +67,10 @@ export function showToast(message, type = "info") {
   el.textContent = message;
   el.className = `toast show ${type}`;
   clearTimeout(el._timer);
+  const duration = type === "error" ? 6500 : 4200;
   el._timer = setTimeout(() => {
     el.classList.remove("show");
-  }, 4500);
+  }, duration);
 }
 
 export function setLoading(btn, loading, label = "Loading…") {

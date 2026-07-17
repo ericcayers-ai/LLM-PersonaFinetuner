@@ -2,36 +2,72 @@ import { api, showToast, setLoading } from "../api.js";
 
 export function renderTest(container, state) {
   const hasPersona = Boolean(state.personaId);
+  const persona = state.personas?.find((p) => p.id === state.personaId);
+  const isTrained = persona?.status === "trained";
+  const canChat = hasPersona;
+
   container.innerHTML = `
     <h2 class="step-heading">Test</h2>
-    <p class="step-desc">Chat with your fine-tuned persona. Toggle comparison to see base model vs clone side-by-side.</p>
+    <p class="step-desc">Chat with your fine-tuned persona. Optionally compare answers with the base model.</p>
 
-    ${hasPersona ? "" : '<div class="empty-state">Train a persona first, then select it from the sidebar to chat.</div>'}
+    ${
+      !hasPersona
+        ? `<div class="empty-state">
+            <strong>Select or train a persona</strong>
+            Build a dataset in Source, train it, then pick it from the sidebar to chat.
+            <div class="btn-row mt-3">
+              <button type="button" class="btn btn-secondary btn-sm" id="goto-source">Go to Source</button>
+            </div>
+          </div>`
+        : !isTrained
+          ? `<div class="empty-state">
+              <strong>Persona not trained yet</strong>
+              “${escapeHtml(persona?.name || "Selected persona")}” has a dataset but no adapter. Train it first for best results — chat may still fail until training completes.
+              <div class="btn-row mt-3">
+                <button type="button" class="btn btn-secondary btn-sm" id="goto-train">Go to Train</button>
+              </div>
+            </div>`
+          : ""
+    }
 
-    <div class="test-controls">
-      <div class="slider-row form-row">
-        <label for="temperature">Temperature <span id="temp-val">0.7</span></label>
-        <input type="range" id="temperature" min="0" max="10" value="7" />
+    <div class="test-layout">
+      <div class="test-toolbar">
+        <div class="test-toolbar-left">
+          <div class="slider-row form-row">
+            <label for="temperature">Temperature <span id="temp-val">0.7</span></label>
+            <input type="range" id="temperature" min="0" max="10" value="7" ${canChat ? "" : "disabled"} />
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="compare-base" ${canChat ? "" : "disabled"} />
+            <label for="compare-base">Compare with base model</label>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="clear-chat" ${canChat ? "" : "disabled"}>Clear chat</button>
       </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="compare-base" />
-        <label for="compare-base">Compare with base model</label>
-      </div>
-      <div class="btn-row chat-actions">
-        <button type="button" class="btn btn-secondary btn-sm" id="clear-chat" ${hasPersona ? "" : "disabled"}>Clear chat</button>
-      </div>
-    </div>
 
-    <div class="chat-container">
-      <div class="chat-messages" id="chat-messages">
-        ${hasPersona ? "" : '<p class="chat-empty">Messages will appear here.</p>'}
-      </div>
-      <div class="chat-input-row">
-        <input type="text" id="chat-input" placeholder="Type a message…" ${hasPersona ? "" : "disabled"} />
-        <button type="button" class="btn btn-primary" id="send-btn" ${hasPersona ? "" : "disabled"}>Send</button>
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages" aria-live="polite">
+          <p class="chat-empty">${
+            canChat
+              ? "Send a message to try the voice. Tip: ask something the original writer would answer in their own style."
+              : "Messages will appear here once a persona is selected."
+          }</p>
+        </div>
+        <div class="chat-input-row">
+          <label class="sr-only" for="chat-input">Message</label>
+          <input type="text" id="chat-input" placeholder="Type a message…" autocomplete="off" ${canChat ? "" : "disabled"} />
+          <button type="button" class="btn btn-primary" id="send-btn" ${canChat ? "" : "disabled"}>Send</button>
+        </div>
       </div>
     </div>
   `;
+
+  container.querySelector("#goto-source")?.addEventListener("click", () => {
+    window.__pfGoToStep?.("source");
+  });
+  container.querySelector("#goto-train")?.addEventListener("click", () => {
+    window.__pfGoToStep?.("train");
+  });
 
   const tempEl = container.querySelector("#temperature");
   tempEl.addEventListener("input", () => {
@@ -89,6 +125,9 @@ export function renderTest(container, state) {
   }
 
   function appendCompare(finetuned, base) {
+    const empty = messagesEl.querySelector(".chat-empty");
+    if (empty) empty.remove();
+
     const grid = document.createElement("div");
     grid.className = "compare-grid";
     grid.innerHTML = `
@@ -135,7 +174,8 @@ export function renderTest(container, state) {
       }
     } catch (e) {
       showToast(e.message, "error");
-      appendBubble("assistant", `Error: ${e.message}`);
+      appendBubble("assistant", `Error: ${e.message}`, "Error");
+      chatHistory.pop();
     } finally {
       setLoading(sendBtn, false);
       sendBtn.textContent = "Send";
@@ -145,13 +185,21 @@ export function renderTest(container, state) {
 
   sendBtn.addEventListener("click", send);
   inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") send();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   });
 
   clearBtn.addEventListener("click", () => {
     chatHistory.length = 0;
-    messagesEl.innerHTML = '<p class="chat-empty">Chat cleared.</p>';
+    messagesEl.innerHTML = '<p class="chat-empty">Chat cleared. Ask something new.</p>';
+    inputEl.focus();
   });
+
+  if (canChat) {
+    setTimeout(() => inputEl.focus(), 50);
+  }
 }
 
 function escapeHtml(s) {

@@ -19,7 +19,7 @@ class TestHealth:
         data = res.json()
         assert data["status"] == "ok"
         assert data["app_name"] == "PersonaFinetuner"
-        assert data["version"] == "1.1.0"
+        assert data["version"] == "1.2.0"
         assert "supported_formats" in data
         assert ".txt" in data["supported_formats"]
 

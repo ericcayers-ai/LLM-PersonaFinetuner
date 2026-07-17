@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     min_samples_warning: int = 20
 
     frontend_dir: Path = Path("frontend")
-    app_version: str = "1.1.0"
+    app_version: str = "1.2.0"
     max_upload_bytes: int = 50 * 1024 * 1024  # 50 MB
 
 

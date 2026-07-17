@@ -4,51 +4,114 @@ let lossChart = null;
 let lossPoints = [];
 
 export function renderTrain(container, state, onTrained) {
+  const hasPersona = Boolean(state.personaId);
+  const persona = state.personas?.find((p) => p.id === state.personaId);
+  const isTrained = persona?.status === "trained";
+
   container.innerHTML = `
     <h2 class="step-heading">Train</h2>
-    <p class="step-desc">Fine-tune a LoRA adapter on your dataset. Requires an NVIDIA GPU.</p>
+    <p class="step-desc">Fine-tune a LoRA adapter on your dataset. Requires an NVIDIA GPU with CUDA.</p>
 
-    ${state.personaId ? "" : '<div class="empty-state">Build a dataset in Source before training.</div>'}
+    ${
+      hasPersona
+        ? ""
+        : `<div class="empty-state">
+            <strong>No dataset selected</strong>
+            Build a dataset in Source first, then return here to train.
+            <div class="btn-row mt-3">
+              <button type="button" class="btn btn-secondary btn-sm" id="goto-source">Go to Source</button>
+            </div>
+          </div>`
+    }
 
-    <div class="form-row train-model-row">
-      <label for="base-model">Base model</label>
-      <select id="base-model">
-        <option value="unsloth/Llama-3.2-3B-Instruct-bnb-4bit">Llama 3.2 3B (recommended)</option>
-        <option value="unsloth/Mistral-7B-Instruct-v0.3-bnb-4bit">Mistral 7B</option>
-        <option value="unsloth/Qwen2.5-7B-Instruct-bnb-4bit">Qwen 2.5 7B</option>
-      </select>
-    </div>
-
-    <div class="hyper-grid">
-      <div class="slider-row form-row">
-        <label for="epochs">Epochs <span id="epochs-val">3</span></label>
-        <input type="range" id="epochs" min="1" max="10" value="3" />
-      </div>
-      <div class="slider-row form-row">
-        <label for="lr">Learning rate <span id="lr-val">2e-4</span></label>
-        <input type="range" id="lr" min="1" max="5" value="2" />
-      </div>
-      <div class="slider-row form-row">
-        <label for="batch">Batch size <span id="batch-val">2</span></label>
-        <input type="range" id="batch" min="1" max="8" value="2" />
-      </div>
-      <div class="slider-row form-row">
-        <label for="lora-r">LoRA rank <span id="lora-val">16</span></label>
-        <input type="range" id="lora-r" min="4" max="64" step="4" value="16" />
+    <div class="section-card train-essentials">
+      <h3 class="section-card-title">Model</h3>
+      <div class="form-row train-model-row">
+        <label for="base-model">Base model</label>
+        <select id="base-model" ${hasPersona ? "" : "disabled"}>
+          <option value="unsloth/Llama-3.2-3B-Instruct-bnb-4bit">Llama 3.2 3B (recommended)</option>
+          <option value="unsloth/Mistral-7B-Instruct-v0.3-bnb-4bit">Mistral 7B</option>
+          <option value="unsloth/Qwen2.5-7B-Instruct-bnb-4bit">Qwen 2.5 7B</option>
+        </select>
+        <p class="field-hint">3B fits most 6–8 GB GPUs. 7B models need more VRAM.</p>
       </div>
     </div>
 
-    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" id="progress-fill"></div></div>
-    <p class="progress-label" id="progress-label">Ready to train.</p>
-    <div class="loss-chart"><canvas id="loss-canvas" width="600" height="160" aria-label="Training loss chart"></canvas></div>
-    <div class="log-panel" id="log-panel" tabindex="0"><div class="log-line">Ready to train.</div></div>
+    <div class="advanced-block" id="advanced-block">
+      <button type="button" class="advanced-toggle" id="advanced-toggle" aria-expanded="false" aria-controls="advanced-body">
+        <span>Advanced settings</span>
+        <span class="advanced-toggle-hint">epochs, LR, batch, LoRA</span>
+        <span class="advanced-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="advanced-body" id="advanced-body">
+        <div class="hyper-grid">
+          <div class="slider-row form-row">
+            <label for="epochs">Epochs <span id="epochs-val">3</span></label>
+            <input type="range" id="epochs" min="1" max="10" value="3" ${hasPersona ? "" : "disabled"} />
+          </div>
+          <div class="slider-row form-row">
+            <label for="lr">Learning rate <span id="lr-val">2e-4</span></label>
+            <input type="range" id="lr" min="1" max="5" value="2" ${hasPersona ? "" : "disabled"} />
+          </div>
+          <div class="slider-row form-row">
+            <label for="batch">Batch size <span id="batch-val">2</span></label>
+            <input type="range" id="batch" min="1" max="8" value="2" ${hasPersona ? "" : "disabled"} />
+          </div>
+          <div class="slider-row form-row">
+            <label for="lora-r">LoRA rank <span id="lora-val">16</span></label>
+            <input type="range" id="lora-r" min="4" max="64" step="4" value="16" ${hasPersona ? "" : "disabled"} />
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="btn-row">
-      <button type="button" class="btn btn-primary" id="start-btn" ${state.personaId ? "" : "disabled"}>Start training</button>
+      <button type="button" class="btn btn-primary" id="start-btn" ${hasPersona ? "" : "disabled"}>Start training</button>
       <button type="button" class="btn btn-danger" id="cancel-btn" disabled>Cancel</button>
-      <button type="button" class="btn btn-secondary" id="export-btn" disabled>Export for Ollama</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-secondary" id="export-btn" ${isTrained ? "" : "disabled"}>Export for Ollama</button>
     </div>
+
+    <div class="train-status-panel section-card">
+      <h3 class="section-card-title">Progress</h3>
+      <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <p class="progress-label" id="progress-label">${hasPersona ? "Ready to train." : "Waiting for a dataset…"}</p>
+      <div class="loss-chart" id="loss-chart" hidden>
+        <canvas id="loss-canvas" width="600" height="160" aria-label="Training loss chart"></canvas>
+      </div>
+      <div class="log-panel" id="log-panel" tabindex="0" aria-label="Training log">
+        <div class="log-line">${hasPersona ? "Ready to train." : "Build a dataset in Source to unlock training."}</div>
+      </div>
+    </div>
+
+    ${
+      isTrained
+        ? `<div class="callout callout-success mt-3">
+            <strong>This persona is trained</strong>
+            Chat with it in Test, or export the adapter for Ollama.
+            <div class="btn-row mt-3">
+              <button type="button" class="btn btn-primary btn-sm" id="goto-test">Continue to Test →</button>
+            </div>
+          </div>`
+        : ""
+    }
   `;
+
+  container.querySelector("#goto-source")?.addEventListener("click", () => {
+    window.__pfGoToStep?.("source");
+  });
+  container.querySelector("#goto-test")?.addEventListener("click", () => {
+    window.__pfGoToStep?.("test");
+  });
+
+  const advancedBlock = container.querySelector("#advanced-block");
+  const advancedToggle = container.querySelector("#advanced-toggle");
+  advancedToggle.addEventListener("click", () => {
+    const open = advancedBlock.classList.toggle("open");
+    advancedToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
 
   const lrMap = { 1: 5e-5, 2: 2e-4, 3: 5e-4, 4: 1e-3, 5: 2e-3 };
   const epochsEl = container.querySelector("#epochs");
@@ -71,17 +134,15 @@ export function renderTrain(container, state, onTrained) {
 
   const logPanel = container.querySelector("#log-panel");
   const progressFill = container.querySelector("#progress-fill");
+  const progressBar = container.querySelector("#progress-bar");
   const progressLabel = container.querySelector("#progress-label");
   const startBtn = container.querySelector("#start-btn");
   const cancelBtn = container.querySelector("#cancel-btn");
   const exportBtn = container.querySelector("#export-btn");
+  const lossChartEl = container.querySelector("#loss-chart");
   const canvas = container.querySelector("#loss-canvas");
   lossChart = canvas.getContext("2d");
   lossPoints = [];
-
-  if (state.personas?.find((p) => p.id === state.personaId)?.status === "trained") {
-    exportBtn.disabled = false;
-  }
 
   function addLog(msg, cls = "") {
     const line = document.createElement("div");
@@ -120,6 +181,7 @@ export function renderTrain(container, state, onTrained) {
     if (progress.total_steps > 0) {
       const pct = (progress.step / progress.total_steps) * 100;
       progressFill.style.width = `${Math.min(pct, 100)}%`;
+      progressBar.setAttribute("aria-valuenow", String(Math.round(Math.min(pct, 100))));
       progressLabel.textContent = `Epoch ${progress.epoch}/${progress.total_epochs || "?"} · Step ${progress.step}/${progress.total_steps}`;
     }
     if (progress.eta_seconds != null && progress.eta_seconds > 0) {
@@ -127,6 +189,7 @@ export function renderTrain(container, state, onTrained) {
       progressLabel.textContent += ` · ~${mins} min left`;
     }
     if (progress.loss != null) {
+      lossChartEl.hidden = false;
       lossPoints.push({ step: progress.step, loss: progress.loss });
       drawLossChart();
       addLog(`Step ${progress.step} — loss ${progress.loss.toFixed(4)}`, "loss");
@@ -145,9 +208,11 @@ export function renderTrain(container, state, onTrained) {
     startBtn.disabled = true;
     cancelBtn.disabled = false;
     lossPoints = [];
+    lossChartEl.hidden = true;
     logPanel.innerHTML = "";
     addLog("Starting training…");
     progressFill.style.width = "0%";
+    progressBar.setAttribute("aria-valuenow", "0");
     document.getElementById("voice-bridge")?.classList.add("training");
 
     try {
@@ -203,6 +268,7 @@ export function renderTrain(container, state, onTrained) {
     } finally {
       setLoading(exportBtn, false);
       exportBtn.textContent = "Export for Ollama";
+      enableExport(state);
     }
   });
 
@@ -214,8 +280,10 @@ export function renderTrain(container, state, onTrained) {
     if (progress.status === "completed") {
       addLog("Training complete!", "loss");
       progressLabel.textContent = "Training complete";
+      progressFill.style.width = "100%";
+      progressBar.setAttribute("aria-valuenow", "100");
       exportBtn.disabled = false;
-      showToast("Training complete!", "success");
+      showToast("Training complete — try chatting in Test.", "success");
       if (onTrained) onTrained();
     } else if (progress.status === "failed") {
       addLog(progress.error || "Training failed", "error");
