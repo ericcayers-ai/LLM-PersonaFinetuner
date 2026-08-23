@@ -59,6 +59,54 @@ export const api = {
     }),
   exportGguf: (personaId) =>
     request(`/api/personas/${personaId}/export-gguf`, { method: "POST" }),
+
+  getVoiceBackends: () => request("/api/voice/backends"),
+  uploadVoiceReference: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/voice/reference", { method: "POST", body: form });
+  },
+  synthesizeVoice: async (body) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/api/voice/synthesize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e.name === "AbortError") throw new Error("Voice synthesis timed out after 2 minutes.");
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        detail = parseErrorBody(await res.json());
+      } catch (_) {}
+      throw new Error(detail);
+    }
+    return res.blob();
+  },
+  startVoiceLiveSession: (lockAfterSeconds = 12) =>
+    request("/api/voice/live/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lock_after_seconds: lockAfterSeconds }),
+    }),
+  getVoiceLiveStatus: (sessionId) => request(`/api/voice/live/${sessionId}/status`),
+  lockVoiceLiveSession: (sessionId) =>
+    request(`/api/voice/live/${sessionId}/lock`, { method: "POST" }),
+  dropVoiceLiveSession: (sessionId) =>
+    request(`/api/voice/live/${sessionId}`, { method: "DELETE" }),
+  voiceLiveStreamUrl: (sessionId) => {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}/api/voice/live/${sessionId}/stream`;
+  },
 };
 
 export function showToast(message, type = "info") {

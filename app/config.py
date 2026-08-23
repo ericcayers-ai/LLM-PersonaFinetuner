@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     app_version: str = "1.2.1"
     max_upload_bytes: int = 50 * 1024 * 1024  # 50 MB
 
+    voices_dir: Path = Path("data/voices")
+    voice_sessions_dir: Path = Path("data/voices/sessions")
+    default_voice_backend: str = "pocket"
+    voice_live_lock_seconds: float = 12.0
+    max_voice_upload_bytes: int = 50 * 1024 * 1024  # 50 MB
+
 
 settings = Settings()
 
@@ -51,5 +57,7 @@ def ensure_dirs() -> None:
         settings.datasets_dir,
         settings.outputs_dir,
         settings.adapters_dir,
+        settings.voices_dir,
+        settings.voice_sessions_dir,
     ):
         path.mkdir(parents=True, exist_ok=True)

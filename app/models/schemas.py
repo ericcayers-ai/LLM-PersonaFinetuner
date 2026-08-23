@@ -156,6 +156,57 @@ class ExportResponse(BaseModel):
     ollama_command: Optional[str] = None
 
 
+class VoiceBackendInfo(BaseModel):
+    name: str
+    weight: str
+    description: str
+
+
+class VoiceBackendsResponse(BaseModel):
+    backends: list[VoiceBackendInfo]
+    default_backend: str
+
+
+class VoiceReferenceResponse(BaseModel):
+    voice_id: str
+    filename: str
+    duration_seconds: float
+
+
+class VoiceSynthesizeRequest(BaseModel):
+    text: str
+    backend: str = "pocket"
+    voice_id: Optional[str] = None
+    session_id: Optional[str] = None
+    persona_id: Optional[str] = None
+    language: Optional[str] = "en"
+    ref_text: str = ""
+    device: str = "auto"
+    upscale_backend: str = "resample"
+    skip_denoise: bool = True
+
+
+class VoiceLiveStartRequest(BaseModel):
+    lock_after_seconds: float = 12.0
+    lock_after_convergence_seconds: float = 30.0
+    lock_after_convergence_seconds_min: float = 4.0
+    convergence_std_threshold: float = 0.02
+    convergence_window: int = 5
+
+
+class VoiceLiveStatusResponse(BaseModel):
+    session_id: str
+    lock_after_seconds: float
+    total_seconds: float
+    locked: bool
+    chunk_count: int
+    has_reference: bool
+    convergence_score: Optional[float] = None
+    convergence_std: Optional[float] = None
+    embedding_history: Optional[list[float]] = None
+    locked_reason: str = "duration"
+
+
 class HealthResponse(BaseModel):
     status: str
     app_name: str

@@ -1,4 +1,7 @@
 import { api, showToast, setLoading } from "../api.js";
+import { createVoiceController } from "../voice.js";
+
+const voiceController = createVoiceController();
 
 export function renderTest(container, state) {
   const hasPersona = Boolean(state.personaId);
@@ -59,6 +62,8 @@ export function renderTest(container, state) {
           <button type="button" class="btn btn-primary" id="send-btn" ${canChat ? "" : "disabled"}>Send</button>
         </div>
       </div>
+
+      <div id="voice-panel-mount"></div>
     </div>
   `;
 
@@ -172,6 +177,7 @@ export function renderTest(container, state) {
       } else {
         appendBubble("assistant", result.response);
       }
+      voiceController.synthesizeAndPlay(result.response);
     } catch (e) {
       showToast(e.message, "error");
       appendBubble("assistant", `Error: ${e.message}`, "Error");
@@ -200,6 +206,9 @@ export function renderTest(container, state) {
   if (canChat) {
     setTimeout(() => inputEl.focus(), 50);
   }
+
+  const voiceMount = container.querySelector("#voice-panel-mount");
+  voiceController.init().then(() => voiceController.render(voiceMount));
 }
 
 function escapeHtml(s) {

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import datasets, inference, personas, system, training
+from app.api import datasets, inference, personas, system, training, voice
 from app.config import ensure_dirs, settings
 from app.errors import http_exception_handler, validation_exception_handler
 
@@ -30,6 +30,7 @@ app.include_router(datasets.router)
 app.include_router(personas.router)
 app.include_router(training.router)
 app.include_router(inference.router)
+app.include_router(voice.router)
 
 frontend_path = settings.frontend_dir
 if frontend_path.exists():

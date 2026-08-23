@@ -18,6 +18,10 @@ build/
 data/
 outputs/
 
+# Built launcher exe / scratch files
+PersonaFinetuner.exe
+.scratch_*
+
 # Secrets / local env extras
 .env.*
 !.env.example
@@ -44,3 +48,17 @@ skills-lock.json
 docs/images/_chrome_profile/
 docs/images/_capture_screens.py
 docs/images/_demo_*.html
+
+# Local AI-tool state (machine-specific paths/hooks, not shared config)
+.claude/
+.codex/
+.cursor/
+.opencode/
+.impeccable/
+graphify-out/
+.graphify/
+.graphify_*_installed
+
+# Personal voice-cloning test recordings (not source, not for git history)
+voiceclonetest.wav
+*.wav
